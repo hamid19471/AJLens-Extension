@@ -5,7 +5,17 @@
 // Usage: npm run build && npm run test:smoke   (set CHROMIUM_PATH to override the browser binary)
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { inflateSync } from 'node:zlib';
 import { tmpdir, homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
@@ -124,6 +134,103 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 
 const executablePath = findChromium();
 const userDataDir = mkdtempSync(join(tmpdir(), 'aj-lens-smoke-'));
+// Temporary Downloads directory for this run; production uses Chrome's normal Downloads folder.
+const downloadDir = mkdtempSync(join(tmpdir(), 'aj-lens-downloads-'));
+mkdirSync(join(userDataDir, 'Default'), { recursive: true });
+writeFileSync(
+  join(userDataDir, 'Default', 'Preferences'),
+  JSON.stringify({ download: { default_directory: downloadDir, prompt_for_download: false } }),
+);
+console.log(`Download directory: ${downloadDir}`);
+
+/** Recursively lists files under a directory (relative paths). */
+function listFiles(dir, base = dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory()
+      ? listFiles(join(dir, e.name), base)
+      : [join(dir, e.name).slice(base.length + 1)],
+  );
+}
+
+async function waitFor(fn, timeout = 8000) {
+  const start = Date.now();
+  for (;;) {
+    const v = fn();
+    if (v) return v;
+    if (Date.now() - start > timeout) return v;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+/** Minimal PNG decoder (8-bit RGB/RGBA, non-interlaced) for pixel checks. */
+function decodePng(buf) {
+  if (buf.readUInt32BE(0) !== 0x89504e47) throw new Error('not a PNG');
+  let pos = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 0;
+  const idat = [];
+  while (pos < buf.length) {
+    const len = buf.readUInt32BE(pos);
+    const type = buf.toString('ascii', pos + 4, pos + 8);
+    const data = buf.subarray(pos + 8, pos + 8 + len);
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      colorType = data[9];
+      if (data[8] !== 8 || data[12] !== 0) throw new Error('unsupported PNG');
+    } else if (type === 'IDAT') idat.push(data);
+    pos += 12 + len;
+  }
+  const bpp = colorType === 6 ? 4 : 3;
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * bpp;
+  const out = Buffer.alloc(height * stride);
+  for (let y = 0; y < height; y++) {
+    const f = raw[y * (stride + 1)];
+    for (let x = 0; x < stride; x++) {
+      const v = raw[y * (stride + 1) + 1 + x];
+      const a = x >= bpp ? out[y * stride + x - bpp] : 0;
+      const b = y > 0 ? out[(y - 1) * stride + x] : 0;
+      const c = x >= bpp && y > 0 ? out[(y - 1) * stride + x - bpp] : 0;
+      let pred = 0;
+      if (f === 1) pred = a;
+      else if (f === 2) pred = b;
+      else if (f === 3) pred = (a + b) >> 1;
+      else if (f === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        pred = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+      }
+      out[y * stride + x] = (v + pred) & 0xff;
+    }
+  }
+  return { width, height, bpp, pixels: out };
+}
+
+/** Fraction of pixels close to any of the given RGB colors. */
+function colorFraction(png, colors, tolerance = 8) {
+  let hits = 0;
+  const n = png.width * png.height;
+  for (let i = 0; i < n; i++) {
+    const r = png.pixels[i * png.bpp];
+    const g = png.pixels[i * png.bpp + 1];
+    const b = png.pixels[i * png.bpp + 2];
+    if (
+      colors.some(
+        ([cr, cg, cb]) =>
+          Math.abs(r - cr) <= tolerance &&
+          Math.abs(g - cg) <= tolerance &&
+          Math.abs(b - cb) <= tolerance,
+      )
+    )
+      hits++;
+  }
+  return hits / n;
+}
 let context;
 try {
   context = await chromium.launchPersistentContext(userDataDir, {
@@ -133,6 +240,8 @@ try {
     deviceScaleFactor: 2,
     // English browser with no stored AJ Lens locale: the panel must still open in Persian.
     locale: 'en-US',
+    // Let Chrome perform downloads itself (restored to "default" behavior over CDP below).
+    acceptDownloads: false,
     args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`, '--headless=new'],
   });
 
@@ -185,8 +294,18 @@ try {
   );
   await noticePage.close();
 
+  // Relay page: forwards export messages from the fixture harness to the real service worker,
+  // so every export click performs a real chrome.downloads.download().
+  const relayPage = await context.newPage();
+  await relayPage.goto(sw.url().replace('background.js', 'notice.html'));
+  const cdp = await context.newCDPSession(relayPage);
+  await cdp.send('Browser.setDownloadBehavior', { behavior: 'default' });
+
   // ---- 2. Content script end-to-end against the fixture with a stubbed runtime.
   const page = await context.newPage();
+  await page.exposeFunction('__ajlRelay', (msg) =>
+    relayPage.evaluate((m) => chrome.runtime.sendMessage(m), msg),
+  );
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   // Fixture images intentionally 404 / point at unresolvable hosts; ignore resource errors.
@@ -219,13 +338,15 @@ try {
         async sendMessage(msg) {
           if (msg.type === 'aj-lens/capture-visible-tab')
             return { ok: true, dataUrl: await window.__ajlCapture() };
-          if (msg.type === 'aj-lens/download') {
-            window.__ajlDownloads.push({
-              filename: msg.filename,
-              size: msg.dataUrl.length,
-              dataUrl: msg.dataUrl,
-            });
-            return { ok: true, downloadId: window.__ajlDownloads.length };
+          if (msg.type === 'aj-lens/download-artifact' || msg.type === 'aj-lens/show-download') {
+            const res = await window.__ajlRelay(msg);
+            if (msg.type === 'aj-lens/download-artifact') {
+              window.__ajlDownloads.push({
+                filename: `${msg.payload.directory}/${msg.payload.filename}`,
+                res,
+              });
+            }
+            return res;
           }
           return { ok: true };
         },
@@ -582,7 +703,7 @@ try {
   );
   check(
     'Persian copy confirmation announced',
-    (await sr('[aria-live="polite"]').textContent()) === 'پرامپت کامل کپی شد',
+    (await sr('[data-testid="announcer"]').textContent()) === 'پرامپت کامل کپی شد',
   );
   const lockedLabel = await page.evaluate(() => {
     const el = document.querySelector('aj-lens-root').shadowRoot.querySelector('.ajl-label');
@@ -666,30 +787,117 @@ try {
     navigator.clipboard.writeText = window.__ajlRealWrite;
   });
 
-  // Exports.
-  await page.locator('aj-lens-root [data-testid="save-prompt"]').click();
+  // Exports: real chrome.downloads into the temporary Downloads directory.
   await page.locator('aj-lens-root [data-testid="save-reference"]').click();
+  await page.locator('aj-lens-root [data-testid="save-prompt"]').click();
   await page.locator('aj-lens-root [data-testid="save-analysis"]').click();
-  await page.waitForTimeout(300);
+  await page.waitForFunction(
+    () =>
+      ['reference', 'prompt', 'analysis'].every((t) =>
+        ['saved', 'failed'].includes(
+          document
+            .querySelector('aj-lens-root')
+            .shadowRoot.querySelector(`[data-testid="save-${t}"]`)?.dataset.state,
+        ),
+      ),
+    null,
+    { timeout: 15000 },
+  );
+  check(
+    'Persian export success labels',
+    (await txt('[data-testid="save-reference"]')) === 'تصویر ذخیره شد ✓' &&
+      (await txt('[data-testid="save-prompt"]')) === 'پرامپت ذخیره شد ✓' &&
+      (await txt('[data-testid="save-analysis"]')) === 'تحلیل ذخیره شد ✓',
+  );
+  const exportLive = await txt('[data-testid="export-live"]');
+  check(
+    'Persian export status names the Downloads folder',
+    /^در Downloads\/AJ-Lens\/.+ ذخیره شد$/.test(exportLive),
+    exportLive,
+  );
+  check(
+    '"Show in downloads" offered (Persian)',
+    (await txt('[data-testid="show-in-downloads"]')) === 'نمایش در دانلودها',
+  );
   const downloads = await page.evaluate(() => window.__ajlDownloads);
   check(
-    'three artifacts exported',
+    'Chrome accepted all three downloads',
     downloads.length === 3 &&
-      ['reconstruction-prompt.md', 'reference.png', 'section-analysis.json'].every((n) =>
-        downloads.some((d) => d.filename.endsWith(`/${n}`)),
-      ),
-    downloads.map((d) => d.filename.split('/').pop()).join(', '),
+      downloads.every((d) => d.res?.ok === true && typeof d.res.downloadId === 'number'),
+    downloads
+      .map((d) => `${d.filename.split('/').pop()}:${d.res?.ok ? 'ok' : d.res?.code}`)
+      .join(', '),
+  );
+  const exportRoot = join(downloadDir, 'AJ-Lens');
+  await waitFor(() => listFiles(exportRoot).filter((f) => !f.endsWith('.crdownload')).length >= 3);
+  const folders = existsSync(exportRoot) ? readdirSync(exportRoot) : [];
+  const folder = folders[0] ?? '';
+  const files = listFiles(join(exportRoot, folder)).sort();
+  check(
+    'one shared AJ-Lens capture folder on disk',
+    folders.length === 1 && /^127-0-0-1-\d{4}-\d{2}-\d{2}-\d{6}$/.test(folder),
+    `Downloads/AJ-Lens/${folder}`,
+  );
+  check(
+    'folder contains reference.png, prompt.md, analysis.json (non-empty)',
+    JSON.stringify(files) === JSON.stringify(['analysis.json', 'prompt.md', 'reference.png']) &&
+      files.every((f) => statSync(join(exportRoot, folder, f)).size > 0),
+    files.join(', '),
+  );
+  const onDisk = (f) => readFileSync(join(exportRoot, folder, f));
+  const analysisText = files.includes('analysis.json')
+    ? onDisk('analysis.json').toString('utf8')
+    : '';
+  let analysisJson = null;
+  try {
+    analysisJson = JSON.parse(analysisText);
+  } catch {
+    analysisJson = null;
+  }
+  check(
+    'analysis.json is valid, formatted, schema 1.0',
+    analysisJson?.schemaVersion === '1.0' &&
+      analysisText === `${JSON.stringify(analysisJson, null, 2)}\n`,
+  );
+  const promptText = files.includes('prompt.md') ? onDisk('prompt.md').toString('utf8') : '';
+  const currentPrompt = await page.locator('aj-lens-root textarea.prompt').inputValue();
+  check(
+    'prompt.md is complete (beginning, full prompt, end)',
+    promptText.startsWith('---\n') &&
+      promptText.includes(currentPrompt.trim()) &&
+      promptText.includes('\n# Assumptions and Uncertainties\n') &&
+      promptText.trimEnd().endsWith('```'),
+    `${promptText.length} bytes`,
+  );
+  if (files.includes('reference.png')) {
+    const png = decodePng(onDisk('reference.png'));
+    check(
+      'reference.png dimensions match the crop',
+      png.width === pw && png.height === ph,
+      `${png.width}×${png.height}`,
+    );
+    // Panel background, overlay border/fill and label colors must not appear in the capture.
+    const uiFraction = colorFraction(png, [
+      [13, 19, 18], // panel background
+      [21, 28, 27], // panel surface
+      [158, 217, 99], // overlay border / label
+      [120, 155, 82], // overlay label (hover)
+    ]);
+    check(
+      'reference.png excludes the panel and overlay',
+      uiFraction < 0.001,
+      `${(uiFraction * 100).toFixed(3)}% UI-colored pixels`,
+    );
+  }
+  check(
+    'no sensitive fixture values in prompt.md / analysis.json',
+    ![promptText, analysisText].some((t) =>
+      /hunter2-secret|tok_9f8e7d6c5b4a3210fedcba|hello@acme\.test/.test(t),
+    ),
   );
   if (process.env.SMOKE_ARTIFACTS) {
-    const { writeFileSync, mkdirSync } = await import('node:fs');
     mkdirSync(process.env.SMOKE_ARTIFACTS, { recursive: true });
-    for (const d of downloads) {
-      const name = d.filename.split('/').pop();
-      writeFileSync(
-        join(process.env.SMOKE_ARTIFACTS, name),
-        Buffer.from(d.dataUrl.split(',')[1], 'base64'),
-      );
-    }
+    for (const f of files) writeFileSync(join(process.env.SMOKE_ARTIFACTS, f), onDisk(f));
     await page.screenshot({ path: join(process.env.SMOKE_ARTIFACTS, 'page-with-panel.png') });
     // Header screenshots (Persian, English) for the documentation.
     await page
@@ -781,6 +989,73 @@ try {
       partialPrompt.includes('**visible part only**'),
     );
   }
+  // New selection (signup form with a password field) → new folder, no secrets on disk.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.evaluate(() =>
+    document.querySelector('aj-lens-root').shadowRoot.activeElement?.blur(),
+  );
+  await page.locator('aj-lens-root [data-testid="lock-toggle"]').click(); // unlock
+  await page.evaluate(() =>
+    window.scrollTo(
+      0,
+      document.querySelector('#signup').getBoundingClientRect().top + window.scrollY - 60,
+    ),
+  );
+  const sh = await page.locator('#signup > h2').boundingBox();
+  await page.mouse.move(sh.x + 20, sh.y + sh.height / 2);
+  await page.waitForTimeout(200);
+  await page.mouse.move(sh.x + 22, sh.y + sh.height / 2);
+  await page.waitForTimeout(200);
+  await page.keyboard.press('Enter');
+  if (
+    await page
+      .locator('aj-lens-root [data-testid="capture-choice"]')
+      .waitFor({ timeout: 2000 })
+      .then(
+        () => true,
+        () => false,
+      )
+  ) {
+    await page.locator('aj-lens-root [data-testid="capture-scroll"]').click();
+  }
+  await page.waitForFunction(
+    () =>
+      !document
+        .querySelector('aj-lens-root')
+        .shadowRoot.querySelector('[data-testid="save-analysis"]').disabled,
+    null,
+    { timeout: 15000 },
+  );
+  await page.locator('aj-lens-root [data-testid="save-prompt"]').click();
+  await page.locator('aj-lens-root [data-testid="save-analysis"]').click();
+  await waitFor(
+    () =>
+      readdirSync(exportRoot).length >= 2 &&
+      listFiles(exportRoot).filter((f) => !f.endsWith('.crdownload')).length >= 5,
+  );
+  const allFolders = readdirSync(exportRoot).sort();
+  const newFolders = allFolders.filter((f) => f !== folder);
+  check(
+    'each new capture gets its own folder',
+    newFolders.length === 1 &&
+      newFolders.every((f) => /^127-0-0-1-\d{4}-\d{2}-\d{2}-\d{6}$/.test(f)),
+    allFolders.join(' | '),
+  );
+  const signupFolder = newFolders.find((f) => listFiles(join(exportRoot, f)).includes('prompt.md'));
+  const signupTexts = signupFolder
+    ? ['prompt.md', 'analysis.json'].map((f) =>
+        readFileSync(join(exportRoot, signupFolder, f), 'utf8'),
+      )
+    : [];
+  check(
+    'signup export on disk contains the form but no password/token/email',
+    signupTexts.length === 2 &&
+      signupTexts[0].includes('password') &&
+      !signupTexts.some((t) =>
+        /hunter2-secret|tok_9f8e7d6c5b4a3210fedcba|hello@acme\.test/.test(t),
+      ),
+  );
+
   await page.evaluate(() => window.__ajLens.toggle());
   check(
     'page clicks work after closing',
@@ -836,6 +1111,7 @@ try {
   await context?.close();
   server.close();
   rmSync(userDataDir, { recursive: true, force: true });
+  if (!process.env.SMOKE_KEEP_DOWNLOADS) rmSync(downloadDir, { recursive: true, force: true });
 }
 
 const failed = results.filter((r) => !r.ok);

@@ -22,8 +22,11 @@ import {
   messages,
   type Locale,
   type Messages,
+  type MessageKey,
 } from '../../shared/i18n';
-import type { ReferenceImage } from '../store';
+import type { ExportState, ReferenceImage } from '../store';
+import type { ArtifactType } from '../../core/prompt/export';
+import type { DownloadErrorCode } from '../../shared/messages';
 
 const PANEL_WIDTH = 360;
 const MARGIN = 16;
@@ -47,6 +50,18 @@ function buildTargetLabel(value: BuildTarget, fallback: string, t: Messages): st
   return fallback; // Technology names are never translated.
 }
 
+/** Renders a dictionary sentence containing `{path}` with the path isolated LTR. */
+function WithLtrPath({ template, path }: { template: string; path: string }) {
+  const [before, after = ''] = template.split('{path}');
+  return (
+    <>
+      {before}
+      <Ltr>{path}</Ltr>
+      {after}
+    </>
+  );
+}
+
 /** Persian labels for filenames: translated verb + LTR-isolated filename. */
 function SaveLabel({ text, file }: { text: string; file: string }) {
   const [before, after] = text.split(file);
@@ -56,6 +71,81 @@ function SaveLabel({ text, file }: { text: string; file: string }) {
       <Ltr>{file}</Ltr>
       {after}
     </>
+  );
+}
+
+const EXPORT_ORDER: readonly ArtifactType[] = ['prompt', 'reference', 'analysis'];
+
+const EXPORT_LABELS = {
+  prompt: { idle: 'savePrompt', pending: 'savingPrompt', saved: 'promptSaved', file: 'prompt.md' },
+  reference: {
+    idle: 'saveReference',
+    pending: 'savingImage',
+    saved: 'imageSaved',
+    file: 'reference.png',
+  },
+  analysis: {
+    idle: 'saveAnalysis',
+    pending: 'savingAnalysis',
+    saved: 'analysisSaved',
+    file: 'analysis.json',
+  },
+} as const satisfies Record<
+  ArtifactType,
+  { idle: MessageKey; pending: MessageKey; saved: MessageKey; file: string }
+>;
+
+const SAVE_FAILED_KEY = {
+  reference: 'saveImageFailed',
+  prompt: 'savePromptFailed',
+  analysis: 'saveAnalysisFailed',
+} as const satisfies Record<ArtifactType, MessageKey>;
+
+const ERROR_KEY = {
+  permission: 'downloadErrorPermission',
+  unavailable: 'downloadErrorUnavailable',
+  'invalid-request': 'downloadErrorInvalid',
+  'invalid-data': 'downloadErrorInvalid',
+  serialization: 'downloadErrorInvalid',
+  filename: 'downloadErrorFilename',
+  cancelled: 'downloadErrorCancelled',
+  rejected: 'downloadErrorRejected',
+} as const satisfies Record<DownloadErrorCode | 'serialization', MessageKey>;
+
+/** One export button with its own pending / saved / failed state. */
+function ExportButton({
+  type,
+  state,
+  ready,
+  t,
+  onSave,
+}: {
+  type: ArtifactType;
+  state: ExportState;
+  ready: boolean;
+  t: Messages;
+  onSave: () => void;
+}) {
+  const labels = EXPORT_LABELS[type];
+  const pending = state === 'pending';
+  return (
+    <button
+      type="button"
+      className={`btn export-btn${state === 'saved' ? ' saved' : ''}${state === 'failed' ? ' failed' : ''}`}
+      disabled={!ready || pending}
+      aria-busy={pending}
+      data-testid={`save-${type}`}
+      data-state={state}
+      onClick={onSave}
+    >
+      {pending ? (
+        t[labels.pending]
+      ) : state === 'saved' ? (
+        `${t[labels.saved]} ✓`
+      ) : (
+        <SaveLabel text={t[labels.idle]} file={labels.file} />
+      )}
+    </button>
   );
 }
 
@@ -102,8 +192,18 @@ function ReferencePreview({ image, t }: { image: ReferenceImage; t: Messages }) 
 
 export function Panel({ controller }: { controller: InspectorController }) {
   const state = useSyncExternalStore(controller.store.subscribe, controller.store.get);
-  const { prefs, candidate, mode, stage, prompt, analysis, reference, notice, captureChoice } =
-    state;
+  const {
+    prefs,
+    candidate,
+    mode,
+    stage,
+    prompt,
+    analysis,
+    reference,
+    notice,
+    captureChoice,
+    exportResult,
+  } = state;
   const panelRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ dx: number; dy: number; id: number } | null>(null);
   const [pos, setPos] = useState(() => prefs.panelPosition ?? defaultPosition());
@@ -553,33 +653,54 @@ export function Panel({ controller }: { controller: InspectorController }) {
                       : ''}
               </div>
             </div>
-            <button
-              type="button"
-              className="btn"
-              disabled={!ready}
-              data-testid="save-prompt"
-              onClick={() => void controller.savePrompt()}
-            >
-              <SaveLabel text={t.savePrompt} file="prompt.md" />
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!ready || !reference}
-              data-testid="save-reference"
-              onClick={() => void controller.saveReference()}
-            >
-              <SaveLabel text={t.saveReference} file="reference.png" />
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!ready}
-              data-testid="save-analysis"
-              onClick={() => void controller.saveAnalysis()}
-            >
-              <SaveLabel text={t.saveAnalysis} file="analysis.json" />
-            </button>
+            {EXPORT_ORDER.map((type) => (
+              <ExportButton
+                key={type}
+                type={type}
+                state={state.exports[type]}
+                ready={controller.artifactReady(type)}
+                t={t}
+                onSave={() => void controller.saveArtifact(type)}
+              />
+            ))}
+            <div className="export-status wide" data-testid="export-status">
+              <div aria-live="polite" data-testid="export-live">
+                {exportResult && exportResult.ok && (
+                  <>
+                    <WithLtrPath template={t.savedTo} path={exportResult.relativePath} />
+                  </>
+                )}
+                {exportResult && !exportResult.ok && (
+                  <span className="failed">
+                    {t[SAVE_FAILED_KEY[exportResult.artifactType]]}{' '}
+                    {t[ERROR_KEY[exportResult.code]]}
+                    {exportResult.detail && (
+                      <span className="detail">
+                        <Ltr>{exportResult.detail}</Ltr>
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
+              {exportResult && exportResult.ok && (
+                <button
+                  type="button"
+                  className="link-btn show-downloads"
+                  data-testid="show-in-downloads"
+                  onClick={() => controller.showLastDownload()}
+                >
+                  {t.showInDownloads}
+                </button>
+              )}
+              {!exportResult && state.exportSession && (
+                <div className="export-folder" data-testid="export-folder">
+                  <WithLtrPath
+                    template={t.exportsFolder}
+                    path={`${state.exportSession.relativeDirectory}/`}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           <details className="options">
@@ -615,7 +736,7 @@ export function Panel({ controller }: { controller: InspectorController }) {
           </div>
         </footer>
       )}
-      <div className="sr-only" aria-live="polite" role="status">
+      <div className="sr-only" aria-live="polite" role="status" data-testid="announcer">
         {state.announcement}
       </div>
     </div>

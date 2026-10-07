@@ -708,6 +708,51 @@
   color: #f1c9c9;
 }
 
+.export-btn.saved {
+  border-color: var(--ajl-border-active);
+  color: var(--ajl-accent);
+}
+
+.export-btn.failed {
+  border-color: rgba(213, 109, 109, 0.55);
+}
+
+.export-btn[aria-busy='true'] {
+  cursor: progress;
+}
+
+/* Fixed minimum height so feedback never makes the panel jump. */
+.export-status {
+  min-height: 16px;
+  color: var(--ajl-text-muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.export-status .failed {
+  color: #f1c9c9;
+}
+
+.export-status .detail {
+  display: block;
+  font-family: var(--ajl-mono);
+  color: var(--ajl-text-muted);
+}
+
+.export-status .show-downloads {
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--ajl-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.panel[dir='rtl'] .export-status {
+  unicode-bidi: plaintext;
+}
+
 .options {
   margin: 10px 0 8px;
   border: 1px solid var(--ajl-border);

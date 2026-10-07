@@ -1,11 +1,7 @@
-import type {
-  BackgroundRequest,
-  CaptureResponse,
-  DownloadResponse,
-  ToggleResponse,
-} from '../shared/messages';
+import type { BackgroundRequest, CaptureResponse, ToggleResponse } from '../shared/messages';
 import { isBackgroundRequest } from '../shared/messages';
 import { restrictionReason } from './restricted';
+import { downloadArtifact } from './downloads';
 import { loadLocale } from '../shared/preferences';
 import { messages, type MessageKey } from '../shared/i18n';
 
@@ -125,31 +121,35 @@ async function handleCapture(sender: chrome.runtime.MessageSender): Promise<Capt
   }
 }
 
-async function handleDownload(filename: string, dataUrl: string): Promise<DownloadResponse> {
-  try {
-    const downloadId = await chrome.downloads.download({
-      url: dataUrl,
-      filename,
-      saveAs: false,
-      conflictAction: 'uniquify',
-    });
-    return { ok: true, downloadId };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
-  if (!isBackgroundRequest(message)) return false;
+  if (!isBackgroundRequest(message)) {
+    // Answer malformed export requests explicitly instead of leaving the panel waiting.
+    if (
+      message &&
+      typeof message === 'object' &&
+      (message as { type?: unknown }).type === 'aj-lens/download-artifact'
+    ) {
+      sendResponse({ ok: false, code: 'invalid-request', error: 'Invalid download request.' });
+    }
+    return false;
+  }
   const req: BackgroundRequest = message;
   switch (req.type) {
     case 'aj-lens/capture-visible-tab':
       void handleCapture(sender).then(sendResponse);
       return true;
-    case 'aj-lens/download':
-      void handleDownload(req.filename, req.dataUrl).then(sendResponse);
+    case 'aj-lens/download-artifact':
+      void downloadArtifact(req.payload).then(sendResponse);
       return true;
+    case 'aj-lens/show-download':
+      try {
+        chrome.downloads.show(req.downloadId);
+        sendResponse({ ok: true });
+      } catch {
+        sendResponse({ ok: false });
+      }
+      return false;
     case 'aj-lens/state':
       if (sender.tab?.id !== undefined) void setActiveBadge(sender.tab.id, req.active);
       sendResponse({ ok: true });

@@ -20,13 +20,15 @@ import { accessibleName } from '../core/analysis/context';
 import { AnalysisAbortedError, analyzeSection } from '../core/analysis';
 import { generatePrompt } from '../core/prompt/generate';
 import {
-  FILES,
+  ARTIFACT_FILES,
+  ARTIFACT_MIME,
   buildJsonExport,
   buildMarkdownExport,
-  exportFolder,
-  textDataUrl,
+  createExportSession,
+  type ArtifactType,
 } from '../core/prompt/export';
 import {
+  IDLE_EXPORTS,
   INITIAL_STATE,
   Store,
   type CandidateInfo,
@@ -35,7 +37,8 @@ import {
 } from './store';
 import { Overlay, overlayLabel } from './overlay';
 import { blobToDataUrl, captureElement, nextFrames } from './capture';
-import { requestDownload, runtimeAvailable } from './runtime';
+import { requestArtifactDownload, requestShowDownload, runtimeAvailable } from './runtime';
+import type { DownloadArtifactPayload, DownloadArtifactResponse } from '../shared/messages';
 import { createClipboardService, type ClipboardService } from './clipboard';
 import { format, formatNumber, messages, type MessageKey } from '../shared/i18n';
 import { Panel } from './panel/Panel';
@@ -47,7 +50,12 @@ export interface ControllerOptions {
   onClose: () => void;
   /** Injected for tests; defaults to the Clipboard API with a shadow-root execCommand fallback. */
   clipboard?: ClipboardService;
+  /** Injected for tests; defaults to the service worker's chrome.downloads handler. */
+  downloader?: (payload: DownloadArtifactPayload) => Promise<DownloadArtifactResponse>;
 }
+
+/** How long per-button export feedback stays visible. */
+export const EXPORT_FEEDBACK_MS = 2000;
 
 /** How long the copy success/failure feedback stays visible. */
 export const COPY_FEEDBACK_MS = 2000;
@@ -126,10 +134,15 @@ export class InspectorController {
   >();
   private destroyed = false;
   private readonly clipboard: ClipboardService;
+  private readonly downloader: (
+    payload: DownloadArtifactPayload,
+  ) => Promise<DownloadArtifactResponse>;
+  private exportTimers: Partial<Record<ArtifactType, number>> = {};
   private capturing = false;
 
   constructor(private readonly opts: ControllerOptions) {
     this.clipboard = opts.clipboard ?? createClipboardService({ container: () => this.shadow });
+    this.downloader = opts.downloader ?? requestArtifactDownload;
   }
 
   /** Interface messages for the user's chosen locale (Persian by default). */
@@ -185,6 +198,7 @@ export class InspectorController {
     window.clearTimeout(this.retryTimer);
     window.clearInterval(this.pollTimer);
     window.clearTimeout(this.copiedTimer);
+    for (const timer of Object.values(this.exportTimers)) window.clearTimeout(timer);
     if (this.saveTimer !== undefined) {
       window.clearTimeout(this.saveTimer);
       void savePreferences(this.store.get().prefs);
@@ -496,6 +510,9 @@ export class InspectorController {
       captureChoice: null,
       copyStatus: 'idle',
       notice: null,
+      exportSession: null,
+      exports: IDLE_EXPORTS,
+      exportResult: null,
     });
     this.say('announceUnlocked');
     if (this.target) this.setTarget(this.target);
@@ -544,6 +561,9 @@ export class InspectorController {
       reference: null,
       copyStatus: 'idle',
       stage: 'measuring',
+      exportSession: null,
+      exports: IDLE_EXPORTS,
+      exportResult: null,
     });
     try {
       const analysis = await analyzeSection(el, {
@@ -565,6 +585,10 @@ export class InspectorController {
         stage: 'ready',
         candidate: c ? { ...c, assets: analysis.assets.length, assetsMeasured: true } : c,
         notice: noticeForAnalysis(analysis),
+        // New capture → new shared Downloads folder for its three artifacts.
+        exportSession: createExportSession(analysis),
+        exports: IDLE_EXPORTS,
+        exportResult: null,
       });
       this.say('announceReady', {
         count: formatNumber(prompt.length, this.store.get().prefs.locale),
@@ -722,57 +746,104 @@ export class InspectorController {
     }, COPY_FEEDBACK_MS);
   }
 
-  private async download(name: string, dataUrl: string): Promise<void> {
-    const analysis = this.store.get().analysis;
-    if (!analysis) return;
-    const path = `${exportFolder(analysis)}/${name}`;
-    const res = await requestDownload(path, dataUrl);
-    if (res.ok) {
-      this.say('announceSaved', { file: name });
+  /** Whether an artifact has the data it needs (button enabled state). */
+  artifactReady(type: ArtifactType): boolean {
+    const { analysis, prompt, reference, exportSession } = this.store.get();
+    if (!exportSession || !analysis || !this.promptReady()) return false;
+    if (type === 'reference') return reference !== null;
+    if (type === 'prompt') return prompt.length > 0;
+    return true;
+  }
+
+  private setExportState(type: ArtifactType, state: InspectorState['exports'][ArtifactType]): void {
+    this.store.set({ exports: { ...this.store.get().exports, [type]: state } });
+  }
+
+  private async buildArtifactContent(
+    type: ArtifactType,
+  ): Promise<DownloadArtifactPayload['content']> {
+    const { analysis, prompt, reference } = this.store.get();
+    if (!analysis) throw new Error('No analysis available.');
+    if (type === 'prompt') return { kind: 'text', value: buildMarkdownExport(analysis, prompt) };
+    if (type === 'analysis') return { kind: 'text', value: buildJsonExport(analysis) };
+    if (!reference) throw new Error('No reference screenshot available.');
+    const dataUrl = await blobToDataUrl(reference.blob);
+    if (!dataUrl.startsWith('data:image/png;base64,')) throw new Error('Invalid screenshot data.');
+    return { kind: 'dataUrl', value: dataUrl };
+  }
+
+  /**
+   * Saves one artifact to Downloads/AJ-Lens/<capture-folder>/ through chrome.downloads.
+   * Each button is independent; a pending save ignores repeated clicks.
+   */
+  async saveArtifact(type: ArtifactType): Promise<void> {
+    const session = this.store.get().exportSession;
+    if (!session || !this.artifactReady(type) || this.store.get().exports[type] === 'pending')
+      return;
+    window.clearTimeout(this.exportTimers[type]);
+    this.setExportState(type, 'pending');
+    let content: DownloadArtifactPayload['content'];
+    try {
+      content = await this.buildArtifactContent(type);
+    } catch (err) {
+      this.finishExport(type, {
+        artifactType: type,
+        ok: false,
+        code: 'serialization',
+        detail: err instanceof Error ? err.message : String(err),
+      });
       return;
     }
-    // Fallback: anchor download from the page (works when the service worker is unavailable).
-    try {
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = name;
-      a.style.display = 'none';
-      this.shadow?.append(a);
-      a.click();
-      a.remove();
-      this.say('announceSaved', { file: name });
-    } catch {
-      this.setNotice({ kind: 'error', key: 'downloadFailed', detail: res.error });
+    const res = await this.downloader({
+      artifactType: type,
+      directory: session.relativeDirectory,
+      filename: ARTIFACT_FILES[type],
+      mimeType: ARTIFACT_MIME[type],
+      content,
+    });
+    // Ignore results for a capture that has since been replaced or closed.
+    if (this.destroyed || this.store.get().exportSession?.id !== session.id) return;
+    if (res.ok) {
+      this.finishExport(type, {
+        artifactType: type,
+        ok: true,
+        relativePath: res.relativePath,
+        downloadId: res.downloadId,
+      });
+    } else {
+      this.finishExport(type, { artifactType: type, ok: false, code: res.code, detail: res.error });
     }
+  }
+
+  private finishExport(
+    type: ArtifactType,
+    result: NonNullable<InspectorState['exportResult']>,
+  ): void {
+    this.store.set({
+      exports: { ...this.store.get().exports, [type]: result.ok ? 'saved' : 'failed' },
+      exportResult: result,
+    });
+    this.exportTimers[type] = window.setTimeout(() => {
+      if (!this.destroyed && this.store.get().exports[type] !== 'pending')
+        this.setExportState(type, 'idle');
+    }, EXPORT_FEEDBACK_MS);
+  }
+
+  showLastDownload(): void {
+    const r = this.store.get().exportResult;
+    if (r && r.ok) requestShowDownload(r.downloadId);
   }
 
   async savePrompt(): Promise<void> {
-    const { analysis, prompt } = this.store.get();
-    if (!analysis || !prompt) return;
-    await this.download(
-      FILES.prompt,
-      textDataUrl(buildMarkdownExport(analysis, prompt), 'text/markdown'),
-    );
+    await this.saveArtifact('prompt');
   }
 
   async saveAnalysis(): Promise<void> {
-    const { analysis } = this.store.get();
-    if (!analysis) return;
-    await this.download(FILES.analysis, textDataUrl(buildJsonExport(analysis), 'application/json'));
+    await this.saveArtifact('analysis');
   }
 
   async saveReference(): Promise<void> {
-    const { reference } = this.store.get();
-    if (!reference) return;
-    try {
-      await this.download(FILES.reference, await blobToDataUrl(reference.blob));
-    } catch (err) {
-      this.setNotice({
-        kind: 'error',
-        key: 'downloadFailed',
-        detail: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await this.saveArtifact('reference');
   }
 
   // ---------------------------------------------------------------- helpers

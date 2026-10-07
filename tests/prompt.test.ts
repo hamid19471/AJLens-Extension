@@ -12,7 +12,7 @@ import {
 import {
   buildJsonExport,
   buildMarkdownExport,
-  exportFolder,
+  createExportSession,
   textDataUrl,
   toBase64,
 } from '../src/core/prompt/export';
@@ -163,8 +163,9 @@ describe('exports', () => {
     expect(json.selection.selector).toBe('#pricing');
   });
 
-  it('creates a safe export folder name', () => {
-    expect(exportFolder(analysis)).toMatch(/^aj-lens\/[\w.-]+-pricing-2026-10-07T10-00-00$/);
+  it('creates a safe export folder from hostname and capture time', () => {
+    const session = createExportSession(analysis);
+    expect(session.relativeDirectory).toMatch(/^AJ-Lens\/[A-Za-z0-9-]+-\d{4}-\d{2}-\d{2}-\d{6}$/);
   });
 
   it('encodes UTF-8 data URLs', () => {

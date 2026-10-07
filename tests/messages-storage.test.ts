@@ -3,7 +3,7 @@ import {
   isBackgroundRequest,
   isCaptureResponse,
   isContentRequest,
-  isDownloadResponse,
+  isDownloadArtifactResponse,
 } from '../src/shared/messages';
 import {
   DEFAULT_PREFERENCES,
@@ -32,43 +32,66 @@ describe('message validation', () => {
     expect(isBackgroundRequest({ type: 'unknown' })).toBe(false);
   });
 
-  it('validates download filenames and data URLs', () => {
-    const dataUrl = 'data:text/markdown;charset=utf-8;base64,aGk=';
+  it('validates download-artifact requests strictly', () => {
+    const base = {
+      artifactType: 'prompt',
+      directory: 'AJ-Lens/crm-karinmed-com-2026-10-07-063655',
+      filename: 'prompt.md',
+      mimeType: 'text/markdown;charset=utf-8',
+      content: { kind: 'text', value: '# Reconstruction Task' },
+    };
+    const req = (payload: Record<string, unknown>) =>
+      isBackgroundRequest({ type: 'aj-lens/download-artifact', payload: { ...base, ...payload } });
+    expect(req({})).toBe(true);
+    // Path traversal, absolute paths and foreign roots are rejected.
+    expect(req({ directory: 'AJ-Lens/../../evil' })).toBe(false);
+    expect(req({ directory: '/Users/me/Desktop' })).toBe(false);
+    expect(req({ directory: 'C:\\Windows' })).toBe(false);
+    expect(req({ directory: 'Other/x' })).toBe(false);
+    expect(req({ directory: 'AJ-Lens/a/b' })).toBe(false);
+    expect(req({ directory: 'AJ-Lens/a.b' })).toBe(false);
+    // Filename and MIME are fixed per artifact type.
+    expect(req({ filename: '../evil.sh' })).toBe(false);
+    expect(req({ filename: 'analysis.json' })).toBe(false);
+    expect(req({ mimeType: 'text/html' })).toBe(false);
+    expect(req({ artifactType: 'script' })).toBe(false);
+    expect(req({ content: { kind: 'text', value: '' } })).toBe(false);
+    expect(req({ content: { kind: 'dataUrl', value: 'https://evil.example/x' } })).toBe(false);
+    // Screenshots must be PNG data URLs.
+    const png = {
+      artifactType: 'reference',
+      filename: 'reference.png',
+      mimeType: 'image/png',
+    };
     expect(
-      isBackgroundRequest({
-        type: 'aj-lens/download',
-        filename: 'aj-lens/a.com-hero/reconstruction-prompt.md',
-        dataUrl,
-      }),
+      req({ ...png, content: { kind: 'dataUrl', value: 'data:image/png;base64,iVBORw0KGgoAAAA' } }),
     ).toBe(true);
-    expect(isBackgroundRequest({ type: 'aj-lens/download', filename: '../evil.sh', dataUrl })).toBe(
+    expect(req({ ...png, content: { kind: 'dataUrl', value: 'data:image/png;base64,AAAA' } })).toBe(
       false,
     );
     expect(
-      isBackgroundRequest({ type: 'aj-lens/download', filename: '/etc/passwd', dataUrl }),
+      req({ ...png, content: { kind: 'dataUrl', value: 'data:image/svg+xml;base64,PHN2Zz4=' } }),
     ).toBe(false);
+    expect(req({ ...png, content: { kind: 'text', value: 'x' } })).toBe(false);
+    expect(isBackgroundRequest({ type: 'aj-lens/show-download', downloadId: 4 })).toBe(true);
+    expect(isBackgroundRequest({ type: 'aj-lens/show-download', downloadId: -1 })).toBe(false);
     expect(
-      isBackgroundRequest({
-        type: 'aj-lens/download',
-        filename: 'a.md',
-        dataUrl: 'https://evil.example/x',
-      }),
+      isBackgroundRequest({ type: 'aj-lens/download', filename: 'a.md', dataUrl: 'data:' }),
     ).toBe(false);
-    expect(
-      isBackgroundRequest({
-        type: 'aj-lens/download',
-        filename: 'a.png',
-        dataUrl: 'data:image/png;base64,AAAA',
-      }),
-    ).toBe(true);
   });
 
   it('validates responses', () => {
     expect(isCaptureResponse({ ok: true, dataUrl: 'data:image/png;base64,AA' })).toBe(true);
     expect(isCaptureResponse({ ok: true, dataUrl: 'https://x' })).toBe(false);
     expect(isCaptureResponse({ ok: false, error: 'nope' })).toBe(true);
-    expect(isDownloadResponse({ ok: true, downloadId: 3 })).toBe(true);
-    expect(isDownloadResponse({ ok: true })).toBe(false);
+    expect(
+      isDownloadArtifactResponse({ ok: true, downloadId: 3, relativePath: 'AJ-Lens/x/prompt.md' }),
+    ).toBe(true);
+    expect(isDownloadArtifactResponse({ ok: true, downloadId: 3 })).toBe(false);
+    expect(
+      isDownloadArtifactResponse({ ok: false, code: 'cancelled', error: 'USER_CANCELED' }),
+    ).toBe(true);
+    expect(isDownloadArtifactResponse({ ok: false, error: 'x' })).toBe(false);
   });
 });
 

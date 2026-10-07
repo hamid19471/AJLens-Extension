@@ -2,6 +2,26 @@ import type { AnalysisStage, SectionAnalysis } from '../shared/types';
 import type { Preferences } from '../shared/preferences';
 import { DEFAULT_PREFERENCES } from '../shared/preferences';
 import type { MessageKey } from '../shared/i18n';
+import type { DownloadErrorCode } from '../shared/messages';
+import type { ArtifactType, CaptureExportSession } from '../core/prompt/export';
+
+export type ExportState = 'idle' | 'pending' | 'saved' | 'failed';
+
+/** Last export outcome, shown in the export status line (aria-live). */
+export type ExportResult =
+  | { artifactType: ArtifactType; ok: true; relativePath: string; downloadId: number }
+  | {
+      artifactType: ArtifactType;
+      ok: false;
+      code: DownloadErrorCode | 'serialization';
+      detail?: string;
+    };
+
+export const IDLE_EXPORTS: Record<ArtifactType, ExportState> = {
+  reference: 'idle',
+  prompt: 'idle',
+  analysis: 'idle',
+};
 
 export interface CandidateInfo {
   tag: string;
@@ -45,6 +65,11 @@ export interface InspectorState {
   announcement: string;
   /** Result of the last "Copy full prompt" click; resets to idle after a short delay. */
   copyStatus: 'idle' | 'copied' | 'failed';
+  /** Shared Downloads folder for the current capture; null until analysis completes. */
+  exportSession: CaptureExportSession | null;
+  /** Per-button state so each export is independent. */
+  exports: Record<ArtifactType, ExportState>;
+  exportResult: ExportResult | null;
 }
 
 export const INITIAL_STATE: InspectorState = {
@@ -59,6 +84,9 @@ export const INITIAL_STATE: InspectorState = {
   prefs: DEFAULT_PREFERENCES,
   announcement: '',
   copyStatus: 'idle',
+  exportSession: null,
+  exports: IDLE_EXPORTS,
+  exportResult: null,
 };
 
 export class Store<T extends object> {

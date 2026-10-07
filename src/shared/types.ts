@@ -1,7 +1,7 @@
 import type { MessageKey } from './i18n';
 
 /**
- * Versioned schema for section-analysis.json and the in-memory analysis model.
+ * Versioned schema for analysis.json and the in-memory analysis model.
  * Every field is plain JSON so it can be exported verbatim.
  */
 

@@ -290,7 +290,7 @@ describe('Copy full prompt button', () => {
     expect(status().textContent).toBe('Could not copy the prompt. Please try again.');
     expect(status().classList.contains('failed')).toBe(true);
     expect(button().textContent).toBe('Copy full prompt');
-    const live = container.querySelector('[aria-live="polite"]')!;
+    const live = container.querySelector('[data-testid="announcer"]')!;
     expect(live.textContent).toBe('Could not copy the prompt. Please try again.');
   });
 
@@ -305,7 +305,9 @@ describe('Copy full prompt button', () => {
     expect(button().closest('[dir]')?.getAttribute('dir')).toBe('rtl');
     await act(async () => button().click());
     expect(button().textContent).toContain('پرامپت کامل کپی شد');
-    expect(container.querySelector('[aria-live="polite"]')!.textContent).toBe('پرامپت کامل کپی شد');
+    expect(container.querySelector('[data-testid="announcer"]')!.textContent).toBe(
+      'پرامپت کامل کپی شد',
+    );
     // The prompt itself stays English.
     expect(clip.copied[0]).toContain('# Reconstruction Task');
   });

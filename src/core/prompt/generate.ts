@@ -25,7 +25,7 @@ export const PROMPT_INTRO = `Reconstruct the selected website section as closely
 
 First inspect the destination repository to identify its framework, routing, styling system, design tokens, reusable components, asset conventions, and tests. Follow the existing project stack unless the instructions below explicitly require otherwise.
 
-Use reference.png and section-analysis.json as implementation evidence. Treat values marked measured as direct observations and values marked inferred as recommendations requiring visual judgment.`;
+Use reference.png and analysis.json as implementation evidence. Treat values marked measured as direct observations and values marked inferred as recommendations requiring visual judgment.`;
 
 const TARGET_GUIDANCE: Record<BuildTarget, string> = {
   existing:
@@ -74,7 +74,7 @@ export function renderTree(node: StructureNode, maxLines: number, includeText: b
     for (const c of n.children) visit(c, indent + 1);
   };
   visit(node, 0);
-  if (lines.length >= maxLines) lines.push('  … (truncated; see section-analysis.json)');
+  if (lines.length >= maxLines) lines.push('  … (truncated; see analysis.json)');
   return lines.join('\n');
 }
 
@@ -114,7 +114,7 @@ function buildSections(a: SectionAnalysis, o: PromptOptions): Section[] {
         : a.reference.status === 'partial'
           ? '`reference.png` — screenshot of the **visible part only** of the section; parts outside the viewport are missing. Infer the rest from the structure and measurements.'
           : `\`reference.png\` — not available (${a.reference.note ?? a.reference.status}). Rely on measurements and structure.`,
-      '`section-analysis.json` — full sanitized measurements (schema 1.0): structure, computed styles, typography, colors, assets, interactions, accessibility and responsive evidence.',
+      '`analysis.json` — full sanitized measurements (schema 1.0): structure, computed styles, typography, colors, assets, interactions, accessibility and responsive evidence.',
       ...(detailed
         ? [
             'Values labelled **measured** were read from the live page; **discovered** were read from accessible stylesheets; **inferred** are heuristics that need visual judgment.',
@@ -571,7 +571,7 @@ function buildSections(a: SectionAnalysis, o: PromptOptions): Section[] {
     sections.push({
       title: 'Source Measurements',
       priority: 50,
-      body: 'CSS evidence excluded by the user. See section-analysis.json if available.',
+      body: 'CSS evidence excluded by the user. See analysis.json if available.',
     });
   }
 
@@ -623,7 +623,7 @@ function truncateBody(body: string, maxChars: number): string {
   const cut = body.slice(0, maxChars);
   const lastBreak = cut.lastIndexOf('\n');
   const inFence = (cut.slice(0, lastBreak).match(/```/g) ?? []).length % 2 === 1;
-  return `${cut.slice(0, lastBreak > 0 ? lastBreak : maxChars)}${inFence ? '\n```' : ''}\n- … (shortened; full data in section-analysis.json)`;
+  return `${cut.slice(0, lastBreak > 0 ? lastBreak : maxChars)}${inFence ? '\n```' : ''}\n- … (shortened; full data in analysis.json)`;
 }
 
 /** Generates the reconstruction prompt, shortening low-priority sections to respect the size budget. */

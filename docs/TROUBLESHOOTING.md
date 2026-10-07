@@ -54,9 +54,15 @@ Chrome does not reload unpacked extensions on its own. After rebuilding:
 2. Find **AJ Lens** and click **Reload** (the circular arrow).
 3. Refresh the website you are inspecting. Pages that were already open still run the old script until they are refreshed.
 
-### Downloads go to an unexpected place
+### Where are my exports? / Downloads behave unexpectedly
 
-Files are saved to `Downloads/aj-lens/<host>-<type>-<timestamp>/`. If Chrome is set to "Ask where to save each file", it prompts for each file.
+- Files are saved to `Downloads/AJ-Lens/<hostname>-<YYYY-MM-DD-HHmmss>/` inside **Chrome's configured Downloads directory** (`chrome://settings/downloads`). The three files are `reference.png`, `prompt.md` and `analysis.json`. Click **Show in downloads** in the panel to reveal the last saved file.
+- **Chrome asks where to save:** AJ Lens requests `saveAs: false`, but if **Ask where to save each file before downloading** is on, Chrome still shows its dialog. Extensions cannot bypass that setting. Turn it off to save directly. If you cancel the dialog, the panel shows «دانلود لغو شد.» / "The download was cancelled."
+- **"(1)" in a filename:** saving the same artifact twice never overwrites. Chrome adds a number instead (`conflictAction: 'uniquify'`).
+- **«ذخیره … انجام نشد.» / "Could not save …":** the line under the buttons names the reason (cancelled, rejected by Chrome, invalid data, or the background service is unreachable). If it says the background service is unreachable, reload AJ Lens in `chrome://extensions`, then refresh the page.
+- **Image button disabled:** the screenshot was skipped (e.g. you chose **Cancel** in the partial-capture dialog). Press **R** (re-measure) and capture again.
+
+فایل‌های خروجی در پوشه Downloads/AJ-Lens ذخیره می‌شوند. اگر گزینه «پرسیدن محل ذخیره هر فایل» در Chrome فعال باشد، مرورگر ممکن است هنگام دانلود محل ذخیره را از شما بپرسد.
 
 ### The hover target flickers or is too big or too small
 

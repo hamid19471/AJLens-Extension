@@ -354,11 +354,11 @@ describe('panel localization', () => {
   it('shows notices in Persian with raw technical detail kept LTR', () => {
     const c = controllerWith('fa');
     c.store.set({
-      notice: { kind: 'error', key: 'downloadFailed', detail: 'Error: NETWORK_FAILED' },
+      notice: { kind: 'error', key: 'analysisFailed', detail: 'Error: NETWORK_FAILED' },
     });
     render(c);
     const notice = q('[data-testid="notice"]');
-    expect(notice.textContent).toContain('دانلود انجام نشد.');
+    expect(notice.textContent).toContain('تحلیل بخش انجام نشد.');
     expect(notice.querySelector('bdi[dir="ltr"]')!.textContent).toBe('Error: NETWORK_FAILED');
   });
 

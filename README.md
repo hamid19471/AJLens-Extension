@@ -26,13 +26,26 @@ Everything runs in your browser. There is no backend, no API key, and nothing is
 
 ## What it produces
 
-| File                       | Contents                                                                                                                                                                                                                              |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `reconstruction-prompt.md` | Capture metadata (time, sanitized origin, page title, selected element, viewport, classification), the generated prompt, and a sanitized measurement appendix.                                                                        |
-| `reference.png`            | The selected section, cropped from a screenshot of the visible tab at device resolution. The AJ Lens panel and highlight are hidden before capture.                                                                                   |
-| `section-analysis.json`    | A typed, versioned (`schemaVersion: "1.0"`) analysis: structure, layout, computed styles, typography, colors and inferred tokens, assets, interactions, accessibility, responsive evidence, classification, assumptions and warnings. |
+Each export button saves one file through Chrome's Downloads API into **one shared folder per capture**:
 
-Exports are saved to `Downloads/aj-lens/<host>-<type>-<timestamp>/`, so the three files stay together.
+```text
+Downloads/AJ-Lens/<hostname>-<YYYY-MM-DD-HHmmss>/
+├── reference.png   cropped screenshot of the section (full device resolution; panel and highlight hidden)
+├── prompt.md       capture metadata, the complete reconstruction prompt (current Detailed/Compact mode), sanitized appendix
+└── analysis.json   typed, versioned (schemaVersion "1.0") sanitized analysis, 2-space formatted UTF-8 JSON
+```
+
+Example: `Downloads/AJ-Lens/crm-karinmed-com-2026-10-07-063655/prompt.md`
+
+- **Folder name:** the page hostname, sanitized to `A–Z a–z 0–9 - _` (dots and spaces become `-`; slashes, colons, query strings and `..` are removed), followed by the **capture time** in your local time. All three files from one locked section share the folder. Switching Detailed/Compact, copying the prompt or changing the interface language never creates a new folder. Locking a new section, re-measuring, or unlocking starts a new one.
+- **Location:** always relative to the browser's configured Downloads directory. AJ Lens never writes outside it and never uses absolute paths.
+- **No Save As prompts:** downloads use `saveAs: false`. If Chrome's **Ask where to save each file before downloading** setting is on, Chrome may still ask; extensions cannot override that preference.
+- **Never overwritten:** `conflictAction: 'uniquify'`, so a repeated save becomes `prompt (1).md` instead of replacing a file.
+- **Local only:** files are generated in your browser and handed to Chrome's download manager. Nothing is uploaded.
+
+After a successful save, the panel shows where the file went and offers **Show in downloads** (Persian: نمایش در دانلودها).
+
+> فایل‌های خروجی در پوشه Downloads/AJ-Lens ذخیره می‌شوند. اگر گزینه «پرسیدن محل ذخیره هر فایل» در Chrome فعال باشد، مرورگر ممکن است هنگام دانلود محل ذخیره را از شما بپرسد.
 
 ## Installation (Load unpacked)
 
@@ -58,7 +71,7 @@ The AJ Lens interface is **Persian (فارسی) by default**, with a full right-
 
 - Switch with the compact **فارسی | EN** selector in the panel header, between the AJ Lens brand and the minimize/close buttons. It works with the mouse or the keyboard (Tab, then Enter or Space). The panel updates immediately, and the choice is saved in `chrome.storage.local`.
 - Existing installs with no saved language are migrated to Persian. Other preferences (panel position, prompt mode, build target, include options) are kept.
-- **Generated prompts are always English**: detailed and compact prompts, their headings, `reconstruction-prompt.md` and the JSON keys in `section-analysis.json`. Persian text captured from a website is kept as-is inside the English prompt.
+- **Generated prompts are always English**: detailed and compact prompts, their headings, `prompt.md` and the JSON keys in `analysis.json`. Persian text captured from a website is kept as-is inside the English prompt.
 - Technical values stay left-to-right inside the Persian UI: selectors, tag names, dimensions, `px`, filenames, URLs, raw browser errors and the prompt editor.
 - The extension description and keyboard-shortcut description are localized through `_locales/fa` and `_locales/en`. The name is always **AJ Lens**.
 
@@ -117,23 +130,23 @@ Shortcuts are ignored while you type in an input, textarea, select or contentedi
 
 1. Save all three files, then move the export folder into (or next to) your project, for example `./design-refs/pricing/`.
 2. In the agent, paste the prompt, or say:
-   > Read `design-refs/pricing/reconstruction-prompt.md` and implement it. Use `reference.png` and `section-analysis.json` in the same folder as evidence.
+   > Read `design-refs/pricing/prompt.md` and implement it. Use `reference.png` and `analysis.json` in the same folder as evidence.
 3. The prompt tells the agent to inspect your repository first, follow its stack and tokens, build only this section as a component, run type checks and tests, and compare its result against `reference.png`.
 
 **ChatGPT / GPT and other chat UIs**
 
-Paste the copied prompt and attach `reference.png` (and optionally `section-analysis.json`). Use **Compact** mode when the context window is small.
+Paste the copied prompt and attach `reference.png` (and optionally `analysis.json`). Use **Compact** mode when the context window is small.
 
 Values marked **measured** come straight from the page. **Discovered** values come from readable stylesheets. **Inferred** values (tokens, breakpoints, classification) are heuristics, and the prompt labels them that way.
 
 ## Permissions
 
-| Permission  | Why it is needed                                                                                                                                                                                   |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `activeTab` | Grants temporary access to the current tab, and only after you click the toolbar icon or press the shortcut. AJ Lens has no host permissions and cannot see any page you have not activated it on. |
-| `scripting` | Injects the inspector (`content.js`) into the active tab on demand. Nothing is injected automatically.                                                                                             |
-| `storage`   | Saves your preferences only: panel position, minimized state, build target, custom instructions, prompt detail and include options.                                                                |
-| `downloads` | Saves `reconstruction-prompt.md`, `reference.png` and `section-analysis.json` into one Downloads subfolder.                                                                                        |
+| Permission  | Why it is needed                                                                                                                                                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `activeTab` | Grants temporary access to the current tab, and only after you click the toolbar icon or press the shortcut. AJ Lens has no host permissions and cannot see any page you have not activated it on.                                                                 |
+| `scripting` | Injects the inspector (`content.js`) into the active tab on demand. Nothing is injected automatically.                                                                                                                                                             |
+| `storage`   | Saves your preferences only: panel position, minimized state, build target, custom instructions, prompt detail and include options.                                                                                                                                |
+| `downloads` | Required by `chrome.downloads.download` to save `reference.png`, `prompt.md` and `analysis.json` into `Downloads/AJ-Lens/<capture-folder>/`, and by `chrome.downloads.show` for **Show in downloads**. It does not let AJ Lens read your other downloads or files. |
 
 `chrome.tabs.captureVisibleTab` is covered by `activeTab`, so the broad `tabs` permission is **not** requested. See [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
 
