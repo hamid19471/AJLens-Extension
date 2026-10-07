@@ -1,246 +1,325 @@
+<div dir="rtl">
+
 # AJ Lens
 
-**Point. Capture. Rebuild.**
+**انتخاب کنید، ثبت کنید، بازسازی کنید.**
 
-AJ Lens is a Chrome extension (Manifest V3) that lets you hover over any section of a website, lock it, capture a cropped visual reference, analyze its structure and styling locally, and generate a detailed reconstruction prompt for Claude Code, Codex, GPT, or any other coding agent.
+AJ Lens یک افزونه Chrome (Manifest V3) است که به شما اجازه می‌دهد یک بخش از هر صفحه وب را انتخاب کنید، ساختار DOM و ویژگی‌های بصری آن را بررسی کنید، یک تصویر مرجع از همان بخش بگیرید و یک پرامپت دقیق برای بازسازی آن بسازید. این پرامپت برای ابزارهای کدنویسی مانند Claude Code، Codex یا GPT قابل استفاده است.
 
-Everything runs in your browser. There is no backend, no API key, and nothing is uploaded.
+- رابط کاربری افزونه به‌طور پیش‌فرض **فارسی** و راست‌به‌چپ است.
+- رابط **انگلیسی** هم در دسترس است و از سربرگ پنل انتخاب می‌شود.
+- پرامپت‌های بازسازی و فایل‌های خروجی همیشه **انگلیسی** هستند.
+- همه تحلیل‌ها **به‌صورت محلی** در مرورگر شما انجام می‌شوند.
+- هیچ محتوایی از وب‌سایت **بارگذاری یا ارسال نمی‌شود**. افزونه سرور، کلید API یا حساب کاربری ندارد.
 
----
+![پنل فارسی AJ Lens پس از قفل‌کردن یک بخش](docs/screenshots/aj-lens-persian-panel.png)
 
-## Contents
+## فهرست
 
-- [What it produces](#what-it-produces)
-- [Installation (Load unpacked)](#installation-load-unpacked)
-- [Using AJ Lens](#using-aj-lens)
-- [Keyboard shortcuts](#keyboard-shortcuts)
-- [Screenshot behavior](#screenshot-behavior)
-- [Using the artifacts with coding agents](#using-the-artifacts-with-coding-agents)
-- [Permissions](#permissions)
-- [Privacy](#privacy)
-- [Development](#development)
-- [Build and packaging](#build-and-packaging)
-- [Project structure](#project-structure)
-- [Known limitations](#known-limitations)
-- [Troubleshooting](#troubleshooting)
+- [قابلیت‌ها](#قابلیتها)
+- [تصاویر](#تصاویر)
+- [نصب از سورس](#نصب-از-سورس)
+- [نحوه استفاده](#نحوه-استفاده)
+- [فایل‌های خروجی](#فایلهای-خروجی)
+- [میانبرهای صفحه‌کلید](#میانبرهای-صفحهکلید)
+- [مجوزهای Chrome](#مجوزهای-chrome)
+- [حریم خصوصی](#حریم-خصوصی)
+- [محدودیت‌ها](#محدودیتها)
+- [فرمان‌های توسعه](#فرمانهای-توسعه)
+- [ساختار پروژه](#ساختار-پروژه)
+- [تست و کیفیت](#تست-و-کیفیت)
+- [مستندات بیشتر](#مستندات-بیشتر)
+- [مشارکت](#مشارکت)
+- [مجوز نرم‌افزار](#مجوز-نرمافزار)
 
-## What it produces
+## قابلیت‌ها
 
-Each export button saves one file through Chrome's Downloads API into **one shared folder per capture**:
+**انتخاب بخش**
+
+- **فعال‌سازی بازرس** با کلیک روی آیکون نوار ابزار یا میانبر <bdi dir="ltr">`Alt+Shift+S`</bdi>.
+- **برجسته‌سازی هنگام عبور نشانگر:** یک کادر سبز همراه نشانگر حرکت می‌کند و برچسب تگ، انتخابگر و ابعاد را نشان می‌دهد.
+- **انتخاب ناحیه معنادار:** به‌جای عمیق‌ترین `span` یا آیکون، نزدیک‌ترین بخش معنادار (section، کارت، گرید، فرم، nav) انتخاب می‌شود. یک تأخیر کوتاه (hysteresis) از پرش انتخاب جلوگیری می‌کند.
+- **انتخاب والد** (↑ والد) و **انتخاب بخش کوچک‌تر** (↓ بخش کوچک‌تر) با دکمه یا کلیدهای جهت‌نما.
+- **قفل‌کردن بخش** با کلیک روی صفحه، دکمه «قفل‌کردن بخش» یا کلید Enter.
+
+**تحلیل**
+
+- **تحلیل DOM:** ساختار، تعداد عناصر، عمق و خلاصه درخت.
+- **تحلیل Computed Style:** فقط ویژگی‌های مؤثر در بازسازی، با حذف مقادیر پیش‌فرض و ارثی.
+- **چیدمان:** flex، grid، فاصله‌ها، ابعاد و موقعیت‌ها.
+- **تایپوگرافی:** خانواده فونت، اندازه، وزن، ارتفاع خط و فاصله حروف.
+- **رنگ‌ها و توکن‌ها:** استخراج پالت، متغیرهای CSS (custom properties) و کنتراست.
+- **تشخیص دارایی‌ها:** تصاویر، `picture`/`srcset`، SVG، پس‌زمینه‌ها، ویدیو و canvas.
+- **دسترس‌پذیری:** نقش‌ها، ویژگی‌های ARIA، برچسب‌ها و ساختار سرتیترها.
+- **شواهد واکنش‌گرا (Responsive):** media queryهای مرتبط از stylesheetهای قابل‌خواندن.
+- **تعامل‌ها:** عناصر تعاملی موجود در بخش (بدون کلیک یا تغییر صفحه).
+- **دسته‌بندی بخش:** تشخیص قطعی و اکتشافی نوع بخش (مثلاً hero، pricing، فرم) همراه با میزان اطمینان و شواهد.
+
+**تصویر و پرامپت**
+
+- **ثبت تصویر مرجع:** گرفتن تصویر از ناحیه قابل‌مشاهده تب و برش دقیق آن به اندازه بخش، با درنظرگرفتن devicePixelRatio و بزرگ‌نمایی مرورگر. پنل و کادر برجسته‌سازی در تصویر دیده نمی‌شوند.
+- **پرامپت کامل (Detailed)** و **پرامپت خلاصه (Compact)** با بودجه اندازه مشخص.
+- انتخاب **فناوری ساخت:** پیروی از فناوری پروژه، React، Next.js، Vue، Nuxt، Svelte، Astro، HTML/CSS/JS، Tailwind CSS یا دستورالعمل سفارشی.
+- انتخاب مواردی که در پرامپت گنجانده شوند (متن قابل‌مشاهده، آدرس دارایی‌ها، خلاصه DOM، شواهد CSS و …).
+- **کپی کامل پرامپت با یک کلیک:** همیشه کل پرامپت حالت انتخاب‌شده کپی می‌شود، نه فقط بخش قابل‌مشاهده در کادر متن.
+- **ذخیره `reference.png`**، **ذخیره `prompt.md`** و **ذخیره `analysis.json`** در پوشه Downloads.
+
+**رابط کاربری و حریم خصوصی**
+
+- رابط **فارسی** (پیش‌فرض) و **انگلیسی** با انتخابگر فشرده در سربرگ پنل.
+- **میانبرهای صفحه‌کلید** برای همه کارهای اصلی.
+- پنل در Shadow DOM جداگانه اجرا می‌شود؛ قابل جابه‌جایی و کوچک‌سازی است و موقعیتش ذخیره می‌شود.
+- **حریم خصوصی محلی:** بدون درخواست شبکه، بدون analytics و بدون ذخیره محتوای صفحه.
+
+## تصاویر
+
+همه تصاویر از رابط واقعی AJ Lens روی صفحه نمونه تست (`tests/fixtures/landing.html`) گرفته شده‌اند و هیچ داده شخصی ندارند.
+
+| برجسته‌سازی بخش هنگام عبور نشانگر                                                    | بخش قفل‌شده و تحلیل کامل                                                          |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| ![برجسته‌سازی کارت قیمت‌گذاری هنگام عبور نشانگر](docs/screenshots/section-hover.png) | ![بخش قیمت‌گذاری قفل‌شده همراه با پنل تحلیل](docs/screenshots/section-locked.png) |
+
+| پرامپت انگلیسی بازسازی در پنل فارسی                                                                 | دکمه‌های ذخیره خروجی                                                                                        |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| ![پرامپت بازسازی انگلیسی، تصویر مرجع و دکمه کپی کامل پرامپت](docs/screenshots/generated-prompt.png) | ![دکمه‌های ذخیره prompt.md، reference.png و analysis.json پس از ذخیره](docs/screenshots/export-actions.png) |
+
+انتخابگر زبان در سربرگ پنل:
+
+![سربرگ پنل با انتخابگر فارسی و انگلیسی](docs/screenshots/language-selector-header.png)
+
+## نصب از سورس
+
+پیش‌نیازها: Node.js و npm، و Chrome نسخه 127 یا جدیدتر (یا مرورگر Chromium دیگری که از Manifest V3 پشتیبانی کند).
+
+</div>
+
+```bash
+git clone https://github.com/hamid19471/JALens-Extension.git
+cd JALens-Extension
+npm install
+npm run build
+```
+
+<div dir="rtl">
+
+خروجی ساخت در پوشه `dist/` قرار می‌گیرد. سپس:
+
+1. صفحه `chrome://extensions` را باز کنید.
+2. **Developer mode** را در گوشه بالا فعال کنید.
+3. روی **Load unpacked** کلیک کنید.
+4. پوشه `dist` ساخته‌شده را انتخاب کنید.
+5. از منوی افزونه‌ها (آیکون پازل)، AJ Lens را به نوار ابزار سنجاق (Pin) کنید.
+
+**پس از هر ساخت دوباره:** Chrome افزونه‌های unpacked را خودکار بارگذاری نمی‌کند. در `chrome://extensions` روی دکمه **Reload** افزونه AJ Lens کلیک کنید و سپس صفحه وب موردنظر را هم تازه‌سازی کنید.
+
+فرمان `npm run package` یک فایل ZIP در مسیر `release/aj-lens-1.0.0.zip` می‌سازد. برای استفاده، آن را از حالت فشرده خارج کنید و پوشه حاصل را به همان روش Load unpacked بارگذاری کنید.
+
+## نحوه استفاده
+
+1. یک وب‌سایت معمولی (`http` یا `https`) را باز کنید.
+2. روی آیکون AJ Lens در نوار ابزار کلیک کنید یا <bdi dir="ltr">`Alt+Shift+S`</bdi> را بزنید. پنل در گوشه بالای صفحه باز می‌شود.
+3. نشانگر را روی بخش‌های صفحه حرکت دهید. کادر سبز بخش معنادار زیر نشانگر را نشان می‌دهد و پنل تگ، انتخابگر، ابعاد، تعداد عناصر و تعداد فایل‌ها را نمایش می‌دهد.
+4. در صورت نیاز با **↑ والد** یا **↓ بخش کوچک‌تر** (یا کلیدهای جهت‌نما) انتخاب را دقیق کنید.
+5. روی صفحه کلیک کنید یا **قفل‌کردن بخش** (یا Enter) را بزنید.
+6. صبر کنید تا تحلیل مرحله‌به‌مرحله کامل شود. نوار پیشرفت مراحل را نشان می‌دهد. اگر بخش فقط تا حدی در صفحه دیده شود، می‌توانید «ثبت بخش قابل مشاهده»، «نمایش کامل بخش و ثبت تصویر» یا «انصراف» را انتخاب کنید.
+7. فناوری ساخت و حالت **کامل** یا **خلاصه** را انتخاب کنید. سپس **کپی کامل پرامپت** را بزنید یا سه فایل خروجی را ذخیره کنید.
+8. فایل‌های `prompt.md` و `reference.png` (و در صورت نیاز `analysis.json`) را به ابزار کدنویسی موردنظرتان مانند Claude Code، Codex یا GPT بدهید.
+
+برای ادامه کار، **بازکردن قفل** یا **انتخاب بخش دیگر** را بزنید.
+
+راهنمای کامل‌تر: [docs/USAGE.fa.md](docs/USAGE.fa.md)
+
+## فایل‌های خروجی
+
+هر دکمه ذخیره یک فایل را از طریق Downloads API کروم در **یک پوشه مشترک برای هر بخش قفل‌شده** ذخیره می‌کند:
+
+</div>
 
 ```text
 Downloads/AJ-Lens/<hostname>-<YYYY-MM-DD-HHmmss>/
-├── reference.png   cropped screenshot of the section (full device resolution; panel and highlight hidden)
-├── prompt.md       capture metadata, the complete reconstruction prompt (current Detailed/Compact mode), sanitized appendix
-└── analysis.json   typed, versioned (schemaVersion "1.0") sanitized analysis, 2-space formatted UTF-8 JSON
+├── reference.png
+├── prompt.md
+└── analysis.json
 ```
 
-Example: `Downloads/AJ-Lens/crm-karinmed-com-2026-10-07-063655/prompt.md`
+<div dir="rtl">
 
-- **Folder name:** the page hostname, sanitized to `A–Z a–z 0–9 - _` (dots and spaces become `-`; slashes, colons, query strings and `..` are removed), followed by the **capture time** in your local time. All three files from one locked section share the folder. Switching Detailed/Compact, copying the prompt or changing the interface language never creates a new folder. Locking a new section, re-measuring, or unlocking starts a new one.
-- **Location:** always relative to the browser's configured Downloads directory. AJ Lens never writes outside it and never uses absolute paths.
-- **No Save As prompts:** downloads use `saveAs: false`. If Chrome's **Ask where to save each file before downloading** setting is on, Chrome may still ask; extensions cannot override that preference.
-- **Never overwritten:** `conflictAction: 'uniquify'`, so a repeated save becomes `prompt (1).md` instead of replacing a file.
-- **Local only:** files are generated in your browser and handed to Chrome's download manager. Nothing is uploaded.
+| فایل            | محتوا                                                                                                                                                      |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reference.png` | تصویر برش‌خورده بخش انتخاب‌شده با وضوح کامل دستگاه. پنل و کادر برجسته‌سازی در آن نیستند.                                                                   |
+| `prompt.md`     | اطلاعات ثبت (آدرس پاک‌سازی‌شده، زمان، ابعاد)، کل پرامپت بازسازی در حالت فعلی (کامل یا خلاصه) و پیوست پاک‌سازی‌شده.                                         |
+| `analysis.json` | تحلیل ساختاریافته و نسخه‌دار (`schemaVersion: "1.0"`) شامل ساختار، استایل‌ها، رنگ‌ها، تایپوگرافی، دارایی‌ها و دسته‌بندی؛ با فرمت UTF-8 و تورفتگی دو فاصله. |
 
-After a successful save, the panel shows where the file went and offers **Show in downloads** (Persian: نمایش در دانلودها).
+- نام پوشه از نام میزبان صفحه (فقط حروف و اعداد انگلیسی، `-` و `_`) و زمان ثبت به وقت محلی ساخته می‌شود.
+- مسیر همیشه نسبت به **پوشه Downloads تنظیم‌شده در Chrome** است. AJ Lens هرگز خارج از آن یا با مسیر مطلق ذخیره نمی‌کند.
+- فایل‌ها هرگز بازنویسی نمی‌شوند؛ ذخیره دوباره نامی مانند `prompt (1).md` می‌سازد.
+- اگر گزینه «پرسیدن محل ذخیره هر فایل» در Chrome فعال باشد، مرورگر ممکن است محل ذخیره را بپرسد. افزونه‌ها نمی‌توانند این تنظیم را دور بزنند.
+- پس از ذخیره موفق، پیوند **نمایش در دانلودها** در پنل نمایش داده می‌شود.
 
-> فایل‌های خروجی در پوشه Downloads/AJ-Lens ذخیره می‌شوند. اگر گزینه «پرسیدن محل ذخیره هر فایل» در Chrome فعال باشد، مرورگر ممکن است هنگام دانلود محل ذخیره را از شما بپرسد.
+## میانبرهای صفحه‌کلید
 
-## Installation (Load unpacked)
+| کلید                               | عملکرد                                                                     |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| <bdi dir="ltr">`Alt+Shift+S`</bdi> | فعال یا غیرفعال‌کردن بازرس (قابل تغییر در `chrome://extensions/shortcuts`) |
+| `Esc`                              | بستن بازرس (یا لغو انتخاب نحوه ثبت تصویر)                                  |
+| `↑`                                | انتخاب نزدیک‌ترین والد معنادار                                             |
+| `↓`                                | انتخاب معنادارترین فرزند (در صورت امکان همان که زیر نشانگر است)            |
+| `Enter`                            | قفل‌کردن انتخاب فعلی                                                       |
+| `R`                                | اندازه‌گیری دوباره (در حالت قفل، تحلیل دوباره)                             |
+| `C`                                | کپی پرامپت (پس از قفل‌کردن)                                                |
 
-1. Install dependencies and build:
-   ```bash
-   npm install
-   npm run build
-   ```
-2. Open `chrome://extensions`.
-3. Turn on **Developer mode** (top right).
-4. Click **Load unpacked** and choose the `dist/` folder.
-5. Pin **AJ Lens** to the toolbar (puzzle-piece menu → pin).
+هنگام تایپ در فیلدهای ورودی، textarea، select یا عناصر contenteditable، میانبرها نادیده گرفته می‌شوند.
 
-**After every rebuild or update:** Chrome does not reload unpacked extensions automatically. Open `chrome://extensions`, click **Reload** on AJ Lens, then refresh the website you are inspecting.
+## مجوزهای Chrome
 
-A prebuilt archive is created by `npm run package` at `release/aj-lens-1.0.0.zip`. To use it, unzip it and load the unzipped folder the same way.
+| مجوز        | دلیل نیاز                                                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `activeTab` | دسترسی موقت به تب فعلی، فقط پس از کلیک روی آیکون یا زدن میانبر. گرفتن تصویر با `captureVisibleTab` هم با همین مجوز ممکن است. AJ Lens هیچ مجوز میزبان (host permission) ندارد. |
+| `scripting` | تزریق `content.js` به تب فعال در لحظه درخواست. هیچ اسکریپتی خودکار اجرا نمی‌شود.                                                                                              |
+| `storage`   | ذخیره تنظیمات رابط کاربری در `chrome.storage.local` (زبان، موقعیت پنل، فناوری ساخت، حالت پرامپت و گزینه‌ها).                                                                  |
+| `downloads` | ذخیره `reference.png`، `prompt.md` و `analysis.json` در پوشه Downloads و نمایش فایل ذخیره‌شده. به دانلودهای دیگر شما دسترسی نمی‌دهد.                                          |
 
-Requires Chrome 127 or newer (any Chromium browser that supports MV3 should work).
+توضیح کامل: [docs/PERMISSIONS.fa.md](docs/PERMISSIONS.fa.md)
 
-## Interface language
+## حریم خصوصی
 
-The AJ Lens interface is **Persian (فارسی) by default**, with a full right-to-left layout. The language does not follow the browser language: an English Chrome still opens AJ Lens in Persian until you choose otherwise.
+- به **سرور (backend)** یا **کلید API** نیازی نیست.
+- افزونه هیچ درخواست شبکه‌ای نمی‌فرستد و **هیچ محتوایی از صفحه بارگذاری نمی‌شود**.
+- هیچ analytics، telemetry یا ابزار ردیابی در کد وجود ندارد.
+- **فیلدهای رمز عبور**، inputهای مخفی و فیلدهای پرداخت یا کد یک‌بارمصرف خوانده نمی‌شوند. مقادیر فرم‌ها هم خوانده نمی‌شوند.
+- ایمیل‌ها، اعداد شبیه کارت بانکی و رشته‌های شبیه توکن در متن قابل‌مشاهده حذف (redact) می‌شوند. پارامترهای حساس و ردیابی از URLها پاک می‌شوند.
+- تحلیل و تصویر فقط در حافظه نگه داشته می‌شوند و با بستن بازرس از بین می‌روند، مگر اینکه خودتان آن‌ها را دانلود کنید.
+- فایل‌های دانلودشده فقط به‌صورت محلی در پوشه Downloads ذخیره می‌شوند.
+- تنها چیزی که ماندگار می‌شود **تنظیمات** رابط کاربری است.
 
-- Switch with the compact **فارسی | EN** selector in the panel header, between the AJ Lens brand and the minimize/close buttons. It works with the mouse or the keyboard (Tab, then Enter or Space). The panel updates immediately, and the choice is saved in `chrome.storage.local`.
-- Existing installs with no saved language are migrated to Persian. Other preferences (panel position, prompt mode, build target, include options) are kept.
-- **Generated prompts are always English**: detailed and compact prompts, their headings, `prompt.md` and the JSON keys in `analysis.json`. Persian text captured from a website is kept as-is inside the English prompt.
-- Technical values stay left-to-right inside the Persian UI: selectors, tag names, dimensions, `px`, filenames, URLs, raw browser errors and the prompt editor.
-- The extension description and keyboard-shortcut description are localized through `_locales/fa` and `_locales/en`. The name is always **AJ Lens**.
+سیاست کامل: [docs/PRIVACY.fa.md](docs/PRIVACY.fa.md)
 
-| Persian header                                                  | English header                                                  |
-| --------------------------------------------------------------- | --------------------------------------------------------------- |
-| ![AJ Lens header in Persian](docs/images/aj-lens-header-fa.png) | ![AJ Lens header in English](docs/images/aj-lens-header-en.png) |
+## محدودیت‌ها
 
-![AJ Lens panel in Persian](docs/images/aj-lens-panel-fa.png)
+- **صفحات محدود مرورگر:** Chrome اجرای افزونه را در `chrome://`، `edge://`، `about:`، صفحات افزونه‌ها و صفحات `data:`/`blob:` مسدود می‌کند. AJ Lens در این صفحات یک پیام توضیحی نشان می‌دهد.
+- **Chrome Web Store:** اجرای افزونه در فروشگاه Chrome ممکن نیست.
+- **iframeهای cross-origin:** محتوای داخل آن‌ها قابل بررسی نیست؛ فقط کادر iframe انتخاب می‌شود.
+- **iframeهای هم‌مبدأ:** فقط فریم اصلی بررسی می‌شود و سند داخلی iframe تحلیل نمی‌شود.
+- **Shadow DOM بسته:** محتوای shadow rootهای بسته قابل مشاهده نیست. shadow rootهای باز فقط با کادر میزبان اندازه‌گیری می‌شوند.
+- **stylesheetهای cross-origin:** اگر بدون CORS ارائه شوند قابل خواندن نیستند؛ media queryها، فونت‌ها و متغیرهای آن‌ها در تحلیل نمی‌آیند و تعدادشان گزارش می‌شود.
+- **تصویر فقط از ناحیه قابل‌مشاهده:** امکان ثبت کل صفحه به‌صورت چسباندن چند تصویر وجود ندارد. از «نمایش کامل بخش و ثبت تصویر» یا انتخاب بخش‌های کوچک‌تر استفاده کنید.
+- **بدون فعال‌سازی خودکار حالت‌های تعاملی:** حالت‌های hover، focus، active، منوهای باز و انیمیشن‌ها فعال نمی‌شوند، چون AJ Lens روی صفحه کلیک نمی‌کند و آن را تغییر نمی‌دهد.
+- **صفحات `file://`:** باید گزینه **Allow access to file URLs** برای AJ Lens در `chrome://extensions` فعال باشد.
+- **تنظیمات دانلود مرورگر:** اگر «پرسیدن محل ذخیره هر فایل» فعال باشد، Chrome همچنان پنجره ذخیره را نشان می‌دهد.
+- محتوای canvas، WebGL و ویدیو فقط ثبت می‌شود و بازسازی نمی‌شود. مقادیر محاسبه‌شده مربوط به عرض فعلی پنجره‌اند.
 
-## Using AJ Lens
+## فرمان‌های توسعه
 
-1. Visit a website.
-2. Click the toolbar icon, or press **Alt+Shift+S**. The panel appears near the upper right.
-3. Hover over the page. A green boundary follows the most meaningful region under the pointer (sections, cards, grids, forms, navs), not the deepest span or icon. The panel shows the tag, a short selector, the dimensions, the descendant count and an asset count.
-4. Use **↑ Parent** or **↓ Smaller** (or the arrow keys) to adjust the selection.
-5. **Click the page** or press **Lock section** (or Enter). AJ Lens then:
-   - keeps a stronger boundary on the locked section
-   - analyzes it in stages (the progress bar shows each one)
-   - captures and crops a reference screenshot
-   - classifies the section and generates the prompt
-6. Choose **BUILD WITH** (existing stack, React, Next.js, Vue, Nuxt, Svelte, Astro, HTML/CSS/JS, Tailwind, or custom instructions), **Detailed** or **Compact**, and what the prompt should include.
-7. Click **کپی کامل پرامپت** (English UI: **Copy full prompt**) to copy the complete prompt for the selected mode in one click, or save `prompt.md`, `reference.png` and `analysis.json`. The copy always uses the full generated prompt, not the visible part of the text box.
-8. Click **Unlock section** or **Pick another** to continue.
-
-The panel can be dragged by its header and minimized. Its position, minimized state and prompt settings are remembered.
-
-## Keyboard shortcuts
-
-| Key         | Action                                                                     |
-| ----------- | -------------------------------------------------------------------------- |
-| Alt+Shift+S | Toggle the inspector (change it at `chrome://extensions/shortcuts`)        |
-| Esc         | Close the inspector (or cancel a pending capture choice)                   |
-| ↑           | Select the nearest meaningful parent                                       |
-| ↓           | Select the most meaningful child (the one under the pointer when possible) |
-| Enter       | Lock the current selection                                                 |
-| R           | Refresh the measurement (re-analyzes when locked)                          |
-| C           | Copy the prompt (after locking)                                            |
-
-Shortcuts are ignored while you type in an input, textarea, select or contenteditable element. Pressing Esc in a panel text field leaves the field instead of closing the inspector.
-
-## Screenshot behavior
-
-- Capture happens only after you lock a section.
-- The panel and overlay are hidden, AJ Lens waits for two animation frames, and the service worker calls `chrome.tabs.captureVisibleTab`.
-- The crop scale comes from the captured bitmap width ÷ viewport width, so devicePixelRatio and browser zoom are both handled.
-- If the section is only partly inside the viewport, you choose one of three options:
-  - **Capture visible area**: crops what is visible. The prompt marks the reference as partial.
-  - **Scroll into view and capture**: scrolls the section to the center (or to the top if it is taller than the viewport), then captures.
-  - **Cancel**: skips the screenshot. The analysis and prompt are still produced.
-- There is **no automatic full-page stitching**, because stitching is unreliable with sticky headers, lazy loading and animations. For very tall sections, capture them in parts.
-- Screenshots are kept in memory only, and are lost when the inspector closes unless you save them.
-
-## Using the artifacts with coding agents
-
-**Claude Code / Codex CLI**
-
-1. Save all three files, then move the export folder into (or next to) your project, for example `./design-refs/pricing/`.
-2. In the agent, paste the prompt, or say:
-   > Read `design-refs/pricing/prompt.md` and implement it. Use `reference.png` and `analysis.json` in the same folder as evidence.
-3. The prompt tells the agent to inspect your repository first, follow its stack and tokens, build only this section as a component, run type checks and tests, and compare its result against `reference.png`.
-
-**ChatGPT / GPT and other chat UIs**
-
-Paste the copied prompt and attach `reference.png` (and optionally `analysis.json`). Use **Compact** mode when the context window is small.
-
-Values marked **measured** come straight from the page. **Discovered** values come from readable stylesheets. **Inferred** values (tokens, breakpoints, classification) are heuristics, and the prompt labels them that way.
-
-## Permissions
-
-| Permission  | Why it is needed                                                                                                                                                                                                                                                   |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `activeTab` | Grants temporary access to the current tab, and only after you click the toolbar icon or press the shortcut. AJ Lens has no host permissions and cannot see any page you have not activated it on.                                                                 |
-| `scripting` | Injects the inspector (`content.js`) into the active tab on demand. Nothing is injected automatically.                                                                                                                                                             |
-| `storage`   | Saves your preferences only: panel position, minimized state, build target, custom instructions, prompt detail and include options.                                                                                                                                |
-| `downloads` | Required by `chrome.downloads.download` to save `reference.png`, `prompt.md` and `analysis.json` into `Downloads/AJ-Lens/<capture-folder>/`, and by `chrome.downloads.show` for **Show in downloads**. It does not let AJ Lens read your other downloads or files. |
-
-`chrome.tabs.captureVisibleTab` is covered by `activeTab`, so the broad `tabs` permission is **not** requested. See [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
-
-## Privacy
-
-- Analysis runs locally in the page. No network requests are made by the extension.
-- It does not collect browsing history, cookies, credentials, form values, script contents or application state.
-- Password fields, hidden inputs and payment/OTP autocomplete fields are never read. Placeholders and visible text are scanned to redact emails, card-like numbers and tokens.
-- URLs are sanitized: credentials stripped, tracking parameters removed, sensitive parameters (`token`, `key`, `session`, `code`, `state`, `signature` and similar) redacted, and token-bearing fragments removed. Data URLs are reduced to their type and size.
-- Screenshots and analyses stay in memory and are discarded when the inspector closes unless you download them.
-- AJ Lens runs only after you explicitly activate it on a tab.
-
-Full policy: [docs/PRIVACY.md](docs/PRIVACY.md).
-
-## Development
+</div>
 
 ```bash
 npm install
-npm run dev            # rebuilds dist/ on change (reload the extension in chrome://extensions)
-npm run typecheck      # tsc --noEmit (strict)
-npm run lint           # ESLint (typescript-eslint, react-hooks)
-npm run format         # Prettier
-npm test               # Vitest unit tests (jsdom)
-npm run test:coverage  # with V8 coverage → coverage/
-npm run test:smoke     # real-Chromium smoke test (requires a prior build)
-npm run icons          # regenerate public/icons/*.png
+npm run dev            # ساخت خودکار dist/ هنگام تغییر فایل‌ها
+npm run build          # ساخت dist/ با Vite و اعتبارسنجی manifest
+npm run validate       # بررسی دوباره dist/ (manifest، مجوزها، فایل‌های ارجاع‌شده)
+npm run typecheck      # tsc --noEmit
+npm run lint           # ESLint
+npm run format         # Prettier (نوشتن تغییرات)
+npm run format:check   # Prettier (فقط بررسی)
+npm test               # تست‌های واحد Vitest
+npm run test:coverage  # تست‌ها همراه با گزارش پوشش در coverage/
+npm run test:smoke     # تست دود در Chromium واقعی (پس از build)
+npm run package        # build و ساخت release/aj-lens-<version>.zip
+npm run icons          # ساخت دوباره آیکون‌های public/icons
 ```
 
-The smoke test uses Playwright's Chromium. It reuses any Chromium already in the Playwright cache, or you can set `CHROMIUM_PATH`. It needs no secrets or network. It:
+<div dir="rtl">
 
-1. loads `dist/` as an unpacked extension and verifies that the service worker and manifest boot
-2. runs the built `content.js` on `tests/fixtures/landing.html` with a stubbed extension runtime, and drives hover → parent navigation → lock → partial-capture choice → screenshot crop → prompt → exports → unlock → close
+جزئیات: [docs/DEVELOPMENT.fa.md](docs/DEVELOPMENT.fa.md)
 
-## Build and packaging
+## ساختار پروژه
+
+</div>
+
+```text
+.
+├── public/                  # manifest.json، notice.html، _locales (fa, en)، icons/
+├── src/
+│   ├── background/          # service worker: تزریق، captureVisibleTab، دانلودها، badge
+│   ├── content/             # کنترلر بازرس، overlay، ثبت تصویر، clipboard، store
+│   │   └── panel/           # پنل React در Shadow DOM و CSS آن
+│   ├── core/                # منطق مستقل از chrome.*: انتخاب، فیلترها، selector، استایل، رنگ، پاک‌سازی
+│   │   ├── analysis/        # dom, layout, typography, colors, assets, interactions,
+│   │   │                    # accessibility, responsive, classify و orchestrator
+│   │   └── prompt/          # تولید پرامپت (کامل/خلاصه) و خروجی‌ها
+│   ├── shared/              # انواع تحلیل، پیام‌های typed، تنظیمات، i18n
+│   └── notice/              # صفحه پیام صفحات محدود
+├── tests/                   # تست‌های Vitest و fixtures/landing.html
+├── scripts/                 # build، validate، package، smoke، generate-icons
+└── docs/                    # مستندات فارسی و انگلیسی، تصاویر
+```
+
+<div dir="rtl">
+
+## تست و کیفیت
+
+آخرین اجرای کامل بررسی‌ها روی همین مخزن:
+
+| بررسی                  | نتیجه                                    |
+| ---------------------- | ---------------------------------------- |
+| `npm run format:check` | موفق                                     |
+| `npm run lint`         | موفق، بدون خطا                           |
+| `npm run typecheck`    | موفق                                     |
+| `npm test`             | **198 تست** در 14 فایل، همه موفق         |
+| `npm run build`        | موفق؛ manifest MV3 معتبر                 |
+| `npm run package`      | موفق؛ `release/aj-lens-1.0.0.zip`        |
+| `npm run test:smoke`   | **84 بررسی** در Chromium واقعی، همه موفق |
+
+تست دود (smoke) پوشه `dist/` را به‌عنوان افزونه واقعی در Chromium بارگذاری می‌کند، راه‌اندازی service worker و manifest را بررسی می‌کند و سپس `content.js` ساخته‌شده را روی `tests/fixtures/landing.html` اجرا می‌کند: عبور نشانگر، انتخاب والد، قفل، ثبت و برش تصویر، تولید پرامپت، کپی، دانلود واقعی هر سه فایل، بازکردن قفل و بستن.
+
+## مستندات بیشتر
+
+| موضوع           | فارسی                                               | English                                       |
+| --------------- | --------------------------------------------------- | --------------------------------------------- |
+| راهنمای استفاده | [USAGE.fa.md](docs/USAGE.fa.md)                     | —                                             |
+| معماری          | [ARCHITECTURE.fa.md](docs/ARCHITECTURE.fa.md)       | [ARCHITECTURE.md](docs/ARCHITECTURE.md)       |
+| حریم خصوصی      | [PRIVACY.fa.md](docs/PRIVACY.fa.md)                 | [PRIVACY.md](docs/PRIVACY.md)                 |
+| مجوزها          | [PERMISSIONS.fa.md](docs/PERMISSIONS.fa.md)         | [PERMISSIONS.md](docs/PERMISSIONS.md)         |
+| رفع اشکال       | [TROUBLESHOOTING.fa.md](docs/TROUBLESHOOTING.fa.md) | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
+| توسعه           | [DEVELOPMENT.fa.md](docs/DEVELOPMENT.fa.md)         | —                                             |
+
+## مشارکت
+
+1. مخزن را Fork کنید و یک شاخه جدید بسازید:
+
+</div>
 
 ```bash
-npm run build     # Vite → dist/ (content.js IIFE, background.js ES module, notice page) + validation
-npm run package   # build + release/aj-lens-<version>.zip (manifest at archive root)
-npm run validate  # re-check dist/: manifest, permissions, every referenced file exists
+git checkout -b feature/short-description
 ```
 
-## Project structure
+<div dir="rtl">
 
-```
-public/                 manifest.json, notice.html (restricted-page popup), icons/
-src/
-  background/           service worker: toggle/inject, captureVisibleTab, downloads, badge
-  content/
-    index.ts            bootstrap + typed message listener (top frame only)
-    controller.ts       inspector lifecycle, events, rAF loop, lock/analysis/capture/export
-    overlay.ts          fixed-position highlight (aria-hidden, pointer-events: none)
-    capture.ts          hide UI → capture → crop → PNG
-    store.ts            tiny observable store consumed by React
-    panel/              React panel (Shadow DOM), scoped CSS, icon
-  core/
-    selection.ts        hover candidate, parent/child navigation, hysteresis
-    filters.ts          ignorable/meaningful/region heuristics
-    selector.ts         concise + stable selectors, hashed-class filtering
-    styles.ts, color.ts style and color normalization
-    sanitize.ts         URL sanitization, redaction
-    geometry.ts         rect math, screenshot crop calculation
-    analysis/           dom, layout, typography, colors, assets, interactions,
-                        accessibility, responsive, classify, orchestrator
-    prompt/             prompt generator (detailed/compact), exports
-  shared/               analysis schema types, typed messages, preferences
-tests/                  Vitest suites + fixtures/landing.html
-scripts/                build, validate, package, icons, smoke
-docs/                   ARCHITECTURE, PRIVACY, PERMISSIONS, TROUBLESHOOTING
+2. تغییرات خود را اعمال کنید. برای هر رفتار جدید تست اضافه کنید و متن‌های رابط کاربری را در هر دو زبان در `src/shared/i18n.ts` قرار دهید.
+3. پیش از ارسال، همه بررسی‌ها را اجرا کنید:
+
+</div>
+
+```bash
+npm run format
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run test:smoke
 ```
 
-More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+<div dir="rtl">
 
-## Known limitations
+4. تغییرات را با پیام commit روشن (مثلاً `feat:`، `fix:`، `docs:`) ثبت و push کنید.
+5. یک Pull Request باز کنید و قالب آن را کامل کنید. برای تغییرات رابط کاربری، تصویر بدون داده حساس اضافه کنید.
 
-- **Only the current state is observed.** Hover, focus, active, open-menu and animation states are not triggered, because AJ Lens never clicks or modifies the page. The prompt says so explicitly.
-- **Cross-origin stylesheets** cannot be read by any page script. Media queries, `@font-face` rules and custom properties from them are missing, and the analysis counts and reports them.
-- **Cross-origin iframes:** their contents cannot be inspected. You can select the iframe box, and the panel and analysis warn about it.
-- **Same-origin iframes:** only the top frame is instrumented. An iframe's inner document is not analyzed.
-- **Closed shadow roots** in web components are opaque. Open shadow roots are measured by their host box only.
-- **Screenshots are viewport-only.** There is no full-page stitching. Use "Scroll into view" or select smaller parts.
-- Canvas, WebGL and video contents are recorded as present but not reconstructed.
-- The classifier is deterministic and heuristic. Uncertain results are labelled inferred, with confidence and evidence.
-- Computed values reflect the current viewport width. Responsive behavior at other widths comes from discovered media queries or is labelled inferred.
-- Chrome blocks extensions on `chrome://`, `edge://`, extension pages and the Chrome Web Store. AJ Lens shows an explanatory popup there.
-- `file://` pages need **Allow access to file URLs** enabled for AJ Lens in `chrome://extensions`.
+برای گزارش اشکال یا پیشنهاد قابلیت از [Issues](https://github.com/hamid19471/JALens-Extension/issues) استفاده کنید.
 
-## Troubleshooting
+## مجوز نرم‌افزار
 
-See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md). The most common issues:
+مجوز این پروژه هنوز به‌طور رسمی مشخص نشده است و فایل `LICENSE` در مخزن وجود ندارد. تا زمانی که مالک پروژه مجوز را تعیین کند، همه حقوق برای مالک محفوظ است.
 
-- **Nothing happens on click:** the page may be restricted (look for a red `!` badge), or it was opened before the extension was installed or reloaded. Reload the tab.
-- **"Screenshot permission expired":** `activeTab` access ends when you navigate. Click the toolbar icon again.
-- **"Could not copy the prompt":** some pages block clipboard access. AJ Lens already retries with a fallback copy method. If both fail, use **Save prompt.md**.
+فیلد `license` در `package.json` مقدار `MIT` دارد، اما تا زمانی که فایل `LICENSE` به مخزن اضافه نشود، این مقدار به‌عنوان مجوز رسمی منتشرشده در نظر گرفته نمی‌شود.
 
-## License
-
-MIT
+</div>

@@ -1,7 +1,28 @@
-node_modules
-dist
-release
-coverage
-.DS_Store
+# Dependencies
+node_modules/
+
+# Build and package output (regenerate with npm run build / npm run package)
+dist/
+release/
+*.zip
+
+# Test and coverage output
+coverage/
+playwright-report/
+test-results/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Caches and temporary files
+.cache/
+.wxt/
+.output/
 *.log
-test-results
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
