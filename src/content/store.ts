@@ -1,6 +1,7 @@
 import type { AnalysisStage, SectionAnalysis } from '../shared/types';
 import type { Preferences } from '../shared/preferences';
 import { DEFAULT_PREFERENCES } from '../shared/preferences';
+import type { UiLocale } from './i18n';
 
 export interface CandidateInfo {
   tag: string;
@@ -38,7 +39,9 @@ export interface InspectorState {
   prefs: Preferences;
   /** Polite live-region text. */
   announcement: string;
-  copied: boolean;
+  /** Result of the last "Copy full prompt" click; resets to idle after a short delay. */
+  copyStatus: 'idle' | 'copied' | 'failed';
+  locale: UiLocale;
 }
 
 export const INITIAL_STATE: InspectorState = {
@@ -52,7 +55,8 @@ export const INITIAL_STATE: InspectorState = {
   captureChoice: null,
   prefs: DEFAULT_PREFERENCES,
   announcement: '',
-  copied: false,
+  copyStatus: 'idle',
+  locale: 'en',
 };
 
 export class Store<T extends object> {

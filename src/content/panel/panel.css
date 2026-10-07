@@ -604,6 +604,40 @@
   grid-column: span 2;
 }
 
+.copy-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.copy-full {
+  width: 100%;
+  min-height: 32px;
+  font-size: 12px;
+}
+
+.copy-full.done {
+  background: var(--ajl-accent-dark);
+  border-color: var(--ajl-accent-dark);
+  color: var(--ajl-text);
+}
+
+/* Fixed height so feedback never shifts the panel. */
+.copy-status {
+  height: 14px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: center;
+  color: var(--ajl-text-muted);
+  font-size: 10.5px;
+  line-height: 14px;
+}
+
+.copy-status.failed {
+  color: #f1c9c9;
+}
+
 .options {
   margin: 10px 0 8px;
   border: 1px solid var(--ajl-border);

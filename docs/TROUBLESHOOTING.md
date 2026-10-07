@@ -38,9 +38,11 @@ Content from another origin cannot be read by any extension script running in th
 
 Stylesheets served from another origin without CORS cannot be read. The analysis lists how many were inaccessible. The prompt then labels responsive recommendations as **inferred**.
 
-### Copy prompt fails
+### "Could not copy the prompt. Please try again."
 
-Some pages restrict clipboard access, or the document lost focus. Click inside the panel and try again, select the text in the prompt box and press Cmd/Ctrl+C, or use **Save prompt.md**.
+**Copy full prompt** first uses the Clipboard API. If the page blocks it, AJ Lens tries a fallback: it copies through a temporary hidden text box inside its own panel and removes it immediately. If both fail (some sites lock down clipboard access), click inside the panel and try again, or use **Save prompt.md**. The copied text is always the complete prompt for the selected mode (Detailed or Compact), not just the part visible in the text box.
+
+**Language:** the copy button and its messages follow your browser language. Persian (`fa`) shows کپی کامل پرامپت / پرامپت کامل کپی شد; every other language shows English. The prompt itself is always English, and Persian text captured from the page is kept as-is.
 
 ### Downloads go to an unexpected place
 

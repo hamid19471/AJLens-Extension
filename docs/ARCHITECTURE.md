@@ -41,6 +41,8 @@ Every message is validated by type guards in `src/shared/messages.ts`, and messa
 - **Lock:** this runs `analyzeSection`, which calls back into the controller at the capture stage. If the target is partially visible, the controller asks for a choice, then hides the host, captures and crops. Stage changes are published to the store, which drives the progress bar and the ARIA live region.
 - **Teardown:** `destroy()` aborts listeners, cancels the rAF, timers, observers and the pending analysis, unmounts React, and removes the host. Repeated toggling leaves no listeners or nodes behind (the smoke test checks this).
 
+**Copy full prompt:** `controller.copyPrompt()` reads the complete prompt string for the active mode from the store. It does not read the textarea or a selection. It copies only when generation has finished (`stage === 'ready'`). The copy goes through `ClipboardService` (`clipboard.ts`): first `navigator.clipboard.writeText`, then an off-screen textarea in the extension's shadow root with `execCommand('copy')`. That textarea is removed immediately and focus is restored. Button labels and feedback come from `i18n.ts` (`en`/`fa`, detected from the browser UI language).
+
 The panel is a React 19 component that reads the controller's `Store` through `useSyncExternalStore`. The prompt is regenerated synchronously when prompt preferences change. Re-analysis happens only on lock, on refresh, or when the selection changes while locked.
 
 ## Core (`src/core`)

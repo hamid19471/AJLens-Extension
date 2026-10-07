@@ -36,6 +36,8 @@ import {
 import { Overlay } from './overlay';
 import { blobToDataUrl, captureElement, nextFrames } from './capture';
 import { requestDownload, runtimeAvailable } from './runtime';
+import { createClipboardService, type ClipboardService } from './clipboard';
+import { COPY_STRINGS, browserLanguage, detectLocale } from './i18n';
 import { Panel } from './panel/Panel';
 import panelCss from './panel/panel.css?inline';
 
@@ -43,7 +45,12 @@ export type CaptureChoice = 'visible' | 'scroll' | 'cancel';
 
 export interface ControllerOptions {
   onClose: () => void;
+  /** Injected for tests; defaults to the Clipboard API with a shadow-root execCommand fallback. */
+  clipboard?: ClipboardService;
 }
+
+/** How long the copy success/failure feedback stays visible. */
+export const COPY_FEEDBACK_MS = 2000;
 
 const BLOCKED_POINTER_EVENTS = [
   'pointerdown',
@@ -118,9 +125,13 @@ export class InspectorController {
     { descendants: number; assets: number; name?: string }
   >();
   private destroyed = false;
+  private readonly clipboard: ClipboardService;
   private capturing = false;
 
-  constructor(private readonly opts: ControllerOptions) {}
+  constructor(private readonly opts: ControllerOptions) {
+    this.clipboard = opts.clipboard ?? createClipboardService({ container: () => this.shadow });
+    this.store.set({ locale: detectLocale(browserLanguage()) });
+  }
 
   // ---------------------------------------------------------------- lifecycle
 
@@ -492,7 +503,7 @@ export class InspectorController {
       prompt: '',
       reference: null,
       captureChoice: null,
-      copied: false,
+      copyStatus: 'idle',
       notice: null,
       announcement: 'Selection unlocked. Hover over a section.',
     });
@@ -540,7 +551,7 @@ export class InspectorController {
       analysis: null,
       prompt: '',
       reference: null,
-      copied: false,
+      copyStatus: 'idle',
       stage: 'measuring',
     });
     try {
@@ -665,7 +676,7 @@ export class InspectorController {
     this.store.set({
       prefs,
       ...(analysis && promptAffected
-        ? { prompt: generatePrompt(analysis, this.promptOptions(prefs)), copied: false }
+        ? { prompt: generatePrompt(analysis, this.promptOptions(prefs)), copyStatus: 'idle' }
         : {}),
     });
     window.clearTimeout(this.saveTimer);
@@ -679,49 +690,34 @@ export class InspectorController {
     this.setPrefs({ panelPosition: pos });
   }
 
-  async copyPrompt(): Promise<void> {
-    const text = this.store.get().prompt;
-    if (!text) return;
-    let ok: boolean;
-    try {
-      await navigator.clipboard.writeText(text);
-      ok = true;
-    } catch {
-      ok = this.legacyCopy(text);
-    }
-    window.clearTimeout(this.copiedTimer);
-    this.store.set({
-      copied: ok,
-      announcement: ok ? 'Prompt copied to clipboard.' : 'Copy failed.',
-      ...(ok
-        ? {}
-        : {
-            notice: {
-              kind: 'error',
-              text: 'Clipboard access was blocked by the page. Select the prompt text and copy it manually, or save prompt.md.',
-            } as Notice,
-          }),
-    });
-    if (ok) this.copiedTimer = window.setTimeout(() => this.store.set({ copied: false }), 1800);
+  /** True only when a complete prompt for the current settings is available. */
+  promptReady(): boolean {
+    const { stage, prompt, analysis } = this.store.get();
+    return stage === 'ready' && analysis !== null && prompt.length > 0;
   }
 
-  private legacyCopy(text: string): boolean {
-    const root = this.shadow;
-    if (!root) return false;
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
-    root.append(ta);
-    ta.select();
+  /**
+   * Copies the complete prompt for the active mode, read from state — never from the
+   * textarea, a selection, or rendered text — so nothing is truncated.
+   */
+  async copyPrompt(): Promise<void> {
+    if (!this.promptReady()) return;
+    const fullPrompt = this.store.get().prompt;
+    const strings = COPY_STRINGS[this.store.get().locale];
+    window.clearTimeout(this.copiedTimer);
     let ok: boolean;
     try {
-      ok = document.execCommand('copy');
+      await this.clipboard.copyText(fullPrompt);
+      ok = true;
     } catch {
       ok = false;
     }
-    ta.remove();
-    return ok;
+    if (this.destroyed) return;
+    this.store.set({ copyStatus: ok ? 'copied' : 'failed' });
+    this.announce(ok ? strings.copied : strings.copyFailed);
+    this.copiedTimer = window.setTimeout(() => {
+      if (!this.destroyed) this.store.set({ copyStatus: 'idle' });
+    }, COPY_FEEDBACK_MS);
   }
 
   private async download(name: string, dataUrl: string): Promise<void> {

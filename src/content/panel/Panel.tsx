@@ -14,6 +14,7 @@ import { BUILD_TARGETS, INCLUDE_LABELS } from '../../shared/preferences';
 import { STAGE_LABELS, STAGE_ORDER } from '../../shared/types';
 import { clampToViewport } from '../../core/geometry';
 import { LensIcon } from './LensIcon';
+import { COPY_STRINGS } from '../i18n';
 import type { ReferenceImage } from '../store';
 
 const PANEL_WIDTH = 340;
@@ -76,6 +77,7 @@ export function Panel({ controller }: { controller: InspectorController }) {
   const buildId = useId();
   const customId = useId();
   const promptId = useId();
+  const copyStatusId = useId();
   const locked = mode === 'locked';
 
   // Adopt the stored position once preferences load.
@@ -130,7 +132,10 @@ export function Panel({ controller }: { controller: InspectorController }) {
 
   const stageIndex = stage ? STAGE_ORDER.indexOf(stage) : -1;
   const progress = stage ? Math.round(((stageIndex + 1) / STAGE_ORDER.length) * 100) : 0;
-  const ready = stage === 'ready' && !!analysis;
+  const ready = stage === 'ready' && !!analysis && prompt.length > 0;
+  const generating = stage !== null && stage !== 'ready';
+  const t = COPY_STRINGS[state.locale];
+  const dir = state.locale === 'fa' ? 'rtl' : 'ltr';
 
   const setInclude = (key: keyof IncludeOptions, value: boolean) =>
     controller.setPrefs({ include: { ...prefs.include, [key]: value } });
@@ -406,15 +411,39 @@ export function Panel({ controller }: { controller: InspectorController }) {
           {reference && <ReferencePreview image={reference} />}
 
           <div className="actions">
-            <button
-              type="button"
-              className="btn primary wide"
-              disabled={!ready}
-              onClick={() => void controller.copyPrompt()}
-              title="C"
-            >
-              {state.copied ? 'Copied ✓' : 'Copy prompt'}
-            </button>
+            <div className="copy-block wide">
+              <button
+                type="button"
+                className={`btn primary copy-full${state.copyStatus === 'copied' ? ' done' : ''}`}
+                data-testid="copy-full-prompt"
+                disabled={!ready}
+                aria-busy={generating}
+                aria-label={t.copyAriaLabel}
+                aria-describedby={copyStatusId}
+                lang={state.locale}
+                dir={dir}
+                onClick={() => void controller.copyPrompt()}
+                title={`${t.copyLabel} (C)`}
+              >
+                {state.copyStatus === 'copied' ? `${t.copied} ✓` : t.copyLabel}
+              </button>
+              <div
+                id={copyStatusId}
+                className={`copy-status${state.copyStatus === 'failed' ? ' failed' : ''}`}
+                lang={state.locale}
+                dir={dir}
+              >
+                {state.copyStatus === 'failed'
+                  ? t.copyFailed
+                  : generating
+                    ? t.preparing
+                    : ready
+                      ? prefs.promptDetail === 'detailed'
+                        ? t.modeDetailed
+                        : t.modeCompact
+                      : ''}
+              </div>
+            </div>
             <button
               type="button"
               className="btn"

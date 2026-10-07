@@ -62,7 +62,7 @@ Requires Chrome 127 or newer (any Chromium browser that supports MV3 should work
    - captures and crops a reference screenshot
    - classifies the section and generates the prompt
 6. Choose **BUILD WITH** (existing stack, React, Next.js, Vue, Nuxt, Svelte, Astro, HTML/CSS/JS, Tailwind, or custom instructions), **Detailed** or **Compact**, and what the prompt should include.
-7. Click **Copy prompt**, or save `prompt.md`, `reference.png` and `analysis.json`.
+7. Click **Copy full prompt** (Persian UI: **کپی کامل پرامپت**) to copy the complete prompt for the selected mode in one click, or save `prompt.md`, `reference.png` and `analysis.json`. The copy always uses the full generated prompt, not the visible part of the text box.
 8. Click **Unlock section** or **Pick another** to continue.
 
 The panel can be dragged by its header and minimized. Its position, minimized state and prompt settings are remembered.
@@ -208,7 +208,7 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md). The most common issues:
 
 - **Nothing happens on click:** the page may be restricted (look for a red `!` badge), or it was opened before the extension was installed or reloaded. Reload the tab.
 - **"Screenshot permission expired":** `activeTab` access ends when you navigate. Click the toolbar icon again.
-- **Copy failed:** some pages block clipboard access. Use **Save prompt.md** instead.
+- **"Could not copy the prompt":** some pages block clipboard access. AJ Lens already retries with a fallback copy method. If both fail, use **Save prompt.md**.
 
 ## License
 

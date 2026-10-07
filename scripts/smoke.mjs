@@ -57,6 +57,15 @@ function findChromium() {
   return undefined;
 }
 
+async function copyAndRead(p) {
+  await p.locator('aj-lens-root [data-testid="copy-full-prompt"]').click();
+  await p.waitForTimeout(150);
+  const writes = await p.evaluate(() => window.__ajlClipboardWrites.slice());
+  // null when clipboard reads are blocked in this environment; checks then fail loudly.
+  const clip = await p.evaluate(() => navigator.clipboard.readText()).catch(() => null);
+  return { written: writes[writes.length - 1], clip, writes: writes.length };
+}
+
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push({ name, ok, detail });
@@ -125,7 +134,7 @@ try {
     const buf = await page.screenshot({ type: 'png' });
     return `data:image/png;base64,${buf.toString('base64')}`;
   });
-  await page.addInitScript(() => {
+  const stubRuntime = () => {
     // Simulates a user upgrading from "Section Lens": preferences exist only under the legacy key.
     const stored = (window.__ajlStored = {
       'sectionLens.preferences': {
@@ -173,7 +182,23 @@ try {
         },
       },
     };
+  };
+  // Records the exact string handed to the Clipboard API, then calls the real implementation.
+  const spyClipboard = () => {
+    window.__ajlClipboardWrites = [];
+    const original = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+    if (original) {
+      navigator.clipboard.writeText = async (value) => {
+        window.__ajlClipboardWrites.push(value);
+        return original(value);
+      };
+    }
+  };
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
+    origin: new URL(url).origin,
   });
+  await page.addInitScript(stubRuntime);
+  await page.addInitScript(spyClipboard);
   await page.goto(url);
   await page.addScriptTag({ content: readFileSync(resolve(dist, 'content.js'), 'utf8') });
   check(
@@ -284,6 +309,39 @@ try {
     `${prompt.length}`,
   );
   check('classified as pricing', /Type: \*\*pricing\*\*/.test(prompt));
+
+  // One-click copy of the full detailed prompt, verified against the real clipboard.
+  await page.locator('aj-lens-root .seg button', { hasText: 'Detailed' }).click();
+  const detailedPrompt = await page.locator('aj-lens-root textarea.prompt').inputValue();
+  const detailedCount = Number(
+    (await page.locator('aj-lens-root .count').textContent()).replace(/\D/g, ''),
+  );
+  const copiedDetailed = await copyAndRead(page);
+  check(
+    'one click copies the full detailed prompt to the clipboard',
+    copiedDetailed.clip === detailedPrompt && copiedDetailed.written === detailedPrompt,
+    `clipboard ${copiedDetailed.clip?.length ?? 'unreadable'} / written ${copiedDetailed.written?.length} / generated ${detailedPrompt.length}`,
+  );
+  check(
+    'copied length equals the generated character count',
+    copiedDetailed.clip?.length === detailedCount && detailedCount === detailedPrompt.length,
+    `${copiedDetailed.clip?.length} vs ${detailedCount}`,
+  );
+  check(
+    'copied prompt includes beginning and final sections',
+    copiedDetailed.clip?.startsWith('Reconstruct the selected website section') &&
+      [
+        '# Visual Validation Checklist',
+        '# Source Measurements',
+        '# Assumptions and Uncertainties',
+      ].every((h) => copiedDetailed.clip.includes(`\n${h}\n`)),
+  );
+  check(
+    'success feedback shown on the button',
+    (await page.locator('aj-lens-root [data-testid="copy-full-prompt"]').textContent()).includes(
+      'Full prompt copied',
+    ),
+  );
   check(
     'status shows locked',
     (await page.locator('aj-lens-root .status').textContent())?.includes('LOCKED'),
@@ -319,6 +377,41 @@ try {
     compact.length >= 2000 && compact.length <= 6000,
     `${compact.length}`,
   );
+  await page.waitForTimeout(2100); // let the previous confirmation reset
+  const copiedCompact = await copyAndRead(page);
+  check(
+    'one click copies the full compact prompt after switching modes',
+    copiedCompact.clip === compact && copiedCompact.clip !== copiedDetailed.clip,
+    `${copiedCompact.clip?.length} chars`,
+  );
+
+  // Real-browser fallback: Clipboard API rejects → shadow-root textarea + execCommand('copy').
+  await page.evaluate(() => navigator.clipboard.writeText('stale'));
+  await page.evaluate(() => {
+    window.__ajlRealWrite = navigator.clipboard.writeText;
+    navigator.clipboard.writeText = () =>
+      Promise.reject(new DOMException('blocked', 'NotAllowedError'));
+  });
+  await page.waitForTimeout(2100);
+  await page.locator('aj-lens-root [data-testid="copy-full-prompt"]').click();
+  await page.waitForTimeout(150);
+  const fallbackClip = await page.evaluate(() => navigator.clipboard.readText());
+  const leftovers = await page.evaluate(
+    () =>
+      document
+        .querySelector('aj-lens-root')
+        .shadowRoot.querySelectorAll('textarea:not(.prompt):not(.custom)').length +
+      document.querySelectorAll('body > textarea').length,
+  );
+  check(
+    'execCommand fallback copies the full prompt from Shadow DOM',
+    fallbackClip === compact,
+    `${fallbackClip.length} chars`,
+  );
+  check('fallback textarea removed', leftovers === 0);
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = window.__ajlRealWrite;
+  });
 
   // Exports.
   await page.locator('aj-lens-root .actions .btn', { hasText: 'Save prompt.md' }).click();
@@ -424,6 +517,79 @@ try {
       return clicked;
     }),
   );
+  // Persian interface: same flow on a page whose browser language is fa-IR.
+  const fa = await context.newPage();
+  fa.on('pageerror', (e) => errors.push(e.message));
+  await fa.exposeFunction('__ajlCapture', async () => {
+    const buf = await fa.screenshot({ type: 'png' });
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  });
+  await fa.addInitScript(() => {
+    Object.defineProperty(navigator, 'language', { get: () => 'fa-IR' });
+    Object.defineProperty(navigator, 'languages', { get: () => ['fa-IR', 'fa'] });
+  });
+  await fa.addInitScript(stubRuntime);
+  await fa.addInitScript(spyClipboard);
+  await fa.goto(url);
+  await fa.addScriptTag({ content: readFileSync(resolve(dist, 'content.js'), 'utf8') });
+  await fa.evaluate(() => window.__ajLens.toggle());
+  await fa.locator('aj-lens-root .panel').waitFor();
+  await fa.evaluate(() =>
+    window.scrollTo(
+      0,
+      document.querySelector('#pricing').getBoundingClientRect().top + window.scrollY - 40,
+    ),
+  );
+  const faH = await fa.locator('#pricing > h2').boundingBox();
+  await fa.mouse.move(faH.x + 30, faH.y + faH.height / 2);
+  await fa.waitForTimeout(200);
+  await fa.mouse.move(faH.x + 32, faH.y + faH.height / 2);
+  await fa.waitForTimeout(200);
+  const faButton = fa.locator('aj-lens-root [data-testid="copy-full-prompt"]');
+  check(
+    'Persian button label before generation',
+    (await faButton.textContent()) === 'کپی کامل پرامپت' && (await faButton.isDisabled()),
+  );
+  await fa.keyboard.press('Enter');
+  if (
+    await fa
+      .locator('aj-lens-root .choice')
+      .waitFor({ timeout: 2000 })
+      .then(
+        () => true,
+        () => false,
+      )
+  ) {
+    await fa.locator('aj-lens-root .choice .btn.primary').click();
+  }
+  await fa.waitForFunction(
+    () => {
+      const b = document
+        .querySelector('aj-lens-root')
+        ?.shadowRoot?.querySelector('[data-testid="copy-full-prompt"]');
+      return b && !b.disabled;
+    },
+    null,
+    { timeout: 15000 },
+  );
+  const faPrompt = await fa.locator('aj-lens-root textarea.prompt').inputValue();
+  const faCopied = await copyAndRead(fa);
+  const faFeedback = await faButton.textContent();
+  const faLive = await fa.locator('aj-lens-root [aria-live="polite"]').textContent();
+  check(
+    'Persian feedback "پرامپت کامل کپی شد" and full English prompt copied',
+    faFeedback.includes('پرامپت کامل کپی شد') &&
+      faLive === 'پرامپت کامل کپی شد' &&
+      faCopied.clip === faPrompt &&
+      faPrompt.startsWith('Reconstruct'),
+    `${faFeedback} / ${faCopied.clip?.length} chars`,
+  );
+  check(
+    'Persian accessible name',
+    (await faButton.getAttribute('aria-label')) === 'کپی کامل پرامپت بازسازی در کلیپ‌بورد',
+  );
+  await fa.close();
+
   check('no page errors', errors.length === 0, errors.join(' | '));
 } catch (err) {
   check('smoke run', false, err instanceof Error ? (err.stack ?? err.message) : String(err));
