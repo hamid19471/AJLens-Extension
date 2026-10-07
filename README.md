@@ -56,11 +56,15 @@ Requires Chrome 127 or newer (any Chromium browser that supports MV3 should work
 
 The AJ Lens interface is **Persian (فارسی) by default**, with a full right-to-left layout. The language does not follow the browser language: an English Chrome still opens AJ Lens in Persian until you choose otherwise.
 
-- Switch with the **زبان / Language** selector in the panel (**فارسی** or **English**). The panel updates immediately, and the choice is saved in `chrome.storage.local`.
+- Switch with the compact **فارسی | EN** selector in the panel header, between the AJ Lens brand and the minimize/close buttons. It works with the mouse or the keyboard (Tab, then Enter or Space). The panel updates immediately, and the choice is saved in `chrome.storage.local`.
 - Existing installs with no saved language are migrated to Persian. Other preferences (panel position, prompt mode, build target, include options) are kept.
 - **Generated prompts are always English**: detailed and compact prompts, their headings, `reconstruction-prompt.md` and the JSON keys in `section-analysis.json`. Persian text captured from a website is kept as-is inside the English prompt.
 - Technical values stay left-to-right inside the Persian UI: selectors, tag names, dimensions, `px`, filenames, URLs, raw browser errors and the prompt editor.
 - The extension description and keyboard-shortcut description are localized through `_locales/fa` and `_locales/en`. The name is always **AJ Lens**.
+
+| Persian header                                                  | English header                                                  |
+| --------------------------------------------------------------- | --------------------------------------------------------------- |
+| ![AJ Lens header in Persian](docs/images/aj-lens-header-fa.png) | ![AJ Lens header in English](docs/images/aj-lens-header-en.png) |
 
 ![AJ Lens panel in Persian](docs/images/aj-lens-panel-fa.png)
 

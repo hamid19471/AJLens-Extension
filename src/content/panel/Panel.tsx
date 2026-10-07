@@ -14,8 +14,8 @@ import { BUILD_TARGETS, INCLUDE_MESSAGE_KEYS } from '../../shared/preferences';
 import { STAGE_MESSAGE_KEYS, STAGE_ORDER } from '../../shared/types';
 import { clampToViewport } from '../../core/geometry';
 import { LensIcon } from './LensIcon';
+import { LanguageSelector } from './LanguageSelector';
 import {
-  LOCALES,
   dirFor,
   format,
   formatNumber,
@@ -115,7 +115,6 @@ export function Panel({ controller }: { controller: InspectorController }) {
   const customId = useId();
   const promptId = useId();
   const copyStatusId = useId();
-  const languageId = useId();
   const locked = mode === 'locked';
 
   // Adopt the stored position once preferences load.
@@ -148,24 +147,32 @@ export function Panel({ controller }: { controller: InspectorController }) {
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLElement>) => {
-      if (e.button !== 0 || (e.target as Element).closest('button')) return;
+      if (e.button !== 0 || (e.target as Element).closest('button, .no-drag')) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       drag.current = { dx: e.clientX - clamped.x, dy: e.clientY - clamped.y, id: e.pointerId };
     },
     [clamped.x, clamped.y],
   );
+  // Latest dragged position, independent of render timing (pointerup can arrive before re-render).
+  const livePos = useRef<{ x: number; y: number } | null>(null);
   const onPointerMove = useCallback((e: ReactPointerEvent<HTMLElement>) => {
     if (!drag.current || drag.current.id !== e.pointerId) return;
-    setPos({ x: e.clientX - drag.current.dx, y: e.clientY - drag.current.dy });
+    const next = { x: e.clientX - drag.current.dx, y: e.clientY - drag.current.dy };
+    livePos.current = next;
+    setPos(next);
   }, []);
   const onPointerUp = useCallback(
     (e: ReactPointerEvent<HTMLElement>) => {
       if (!drag.current) return;
       drag.current = null;
       e.currentTarget.releasePointerCapture(e.pointerId);
-      controller.setPanelPosition(clamped);
+      const final = livePos.current
+        ? clampToViewport(livePos.current, { width: PANEL_WIDTH, height }, viewport)
+        : clamped;
+      livePos.current = null;
+      controller.setPanelPosition(final);
     },
-    [controller, clamped],
+    [controller, clamped, height, viewport],
   );
 
   const stageIndex = stage ? STAGE_ORDER.indexOf(stage) : -1;
@@ -202,43 +209,54 @@ export function Panel({ controller }: { controller: InspectorController }) {
         onPointerCancel={onPointerUp}
         title={t.dragToMove}
       >
-        <LensIcon />
-        <bdi className="brand" dir="ltr">
-          AJ Lens
-        </bdi>
-        {prefs.minimized && (
-          <span className={`mini-dot${locked ? ' locked' : ''}`} aria-hidden="true" />
-        )}
-        <span className="spacer" />
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label={prefs.minimized ? t.expandPanel : t.minimizePanel}
-          title={prefs.minimized ? t.expandPanel : t.minimizePanel}
-          aria-expanded={!prefs.minimized}
-          onClick={() => controller.setPrefs({ minimized: !prefs.minimized })}
-        >
-          {prefs.minimized ? (
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M4 10l4-4 4 4" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M4 8h8" />
-            </svg>
+        <div className="brand-group" data-testid="brand-group">
+          <LensIcon />
+          <bdi className="brand" dir="ltr">
+            AJ Lens
+          </bdi>
+          {prefs.minimized && (
+            <span className={`mini-dot${locked ? ' locked' : ''}`} aria-hidden="true" />
           )}
-        </button>
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label={t.closePanel}
-          title={t.closePanel}
-          onClick={() => controller.close()}
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
-          </svg>
-        </button>
+        </div>
+        <LanguageSelector
+          compact
+          value={locale}
+          groupLabel={t.languageGroup}
+          onChange={(next) => controller.setPrefs({ locale: next })}
+        />
+        <div className="window-controls no-drag" data-testid="window-controls">
+          <button
+            type="button"
+            className="icon-btn"
+            data-testid="minimize"
+            aria-label={prefs.minimized ? t.expandPanel : t.minimizePanel}
+            title={prefs.minimized ? t.expandPanel : t.minimizePanel}
+            aria-expanded={!prefs.minimized}
+            onClick={() => controller.setPrefs({ minimized: !prefs.minimized })}
+          >
+            {prefs.minimized ? (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4 10l4-4 4 4" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4 8h8" />
+              </svg>
+            )}
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            data-testid="close"
+            aria-label={t.closePanel}
+            title={t.closePanel}
+            onClick={() => controller.close()}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       {!prefs.minimized && (
@@ -405,29 +423,6 @@ export function Panel({ controller }: { controller: InspectorController }) {
               </div>
             </div>
           )}
-
-          <div className="label-row lang-row">
-            <span className="label" id={languageId}>
-              {t.language}
-            </span>
-            <div className="seg lang-seg" role="radiogroup" aria-labelledby={languageId}>
-              {LOCALES.map((l) => (
-                <button
-                  key={l.value}
-                  type="button"
-                  role="radio"
-                  lang={l.value}
-                  dir={dirFor(l.value)}
-                  aria-checked={locale === l.value}
-                  className={locale === l.value ? 'on' : ''}
-                  data-testid={`locale-${l.value}`}
-                  onClick={() => controller.setPrefs({ locale: l.value })}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
           <label className="label" htmlFor={buildId}>
             {t.buildWith}

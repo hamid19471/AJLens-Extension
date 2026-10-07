@@ -280,9 +280,9 @@ describe('panel localization', () => {
     expect(text('[data-testid="footer"]')).toContain('کلیک: قفل‌کردن');
     expect(text('[data-testid="footer"]')).toContain(FA.footerPrivate);
     // Language selector
-    expect(q('[data-testid="locale-fa"]').getAttribute('aria-checked')).toBe('true');
+    expect(q('[data-testid="locale-fa"]').getAttribute('aria-pressed')).toBe('true');
     expect(text('[data-testid="locale-fa"]')).toBe('فارسی');
-    expect(text('[data-testid="locale-en"]')).toBe('English');
+    expect(text('[data-testid="locale-en"]')).toBe('EN');
   });
 
   it('keeps selectors and dimensions LTR with Persian counts', () => {
@@ -393,7 +393,7 @@ describe('panel localization', () => {
       'Nuxt',
       'Svelte',
       'Astro',
-      'English',
+      'EN',
       'Esc',
       'Enter',
       'DOM',
@@ -421,6 +421,8 @@ describe('panel localization', () => {
       }
       for (const el of Array.from(container.querySelectorAll('*'))) {
         if (el.closest('[dir="ltr"]') && !el.matches('[data-testid="panel"]')) continue;
+        // The English language button is intentionally labelled in English (lang="en").
+        if (el.closest('[lang="en"]')) continue;
         for (const attr of ['aria-label', 'title', 'placeholder', 'aria-description']) {
           const v = el.getAttribute(attr);
           if (v && !(el.matches('textarea.prompt') && attr === 'value')) strings.push(v);

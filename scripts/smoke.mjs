@@ -57,6 +57,43 @@ function findChromium() {
   return undefined;
 }
 
+/** Header geometry from inside the shadow root. */
+async function headerLayout(p) {
+  return p.evaluate(() => {
+    const r = document.querySelector('aj-lens-root').shadowRoot;
+    const box = (sel) => {
+      const b = r.querySelector(sel).getBoundingClientRect();
+      return { x: b.x, right: b.right, width: b.width, height: b.height };
+    };
+    const hdr = r.querySelector('header.hdr');
+    const sel = r.querySelector('[data-testid="language-selector"]');
+    return {
+      brand: box('[data-testid="brand-group"]'),
+      selector: box('[data-testid="language-selector"]'),
+      controls: box('[data-testid="window-controls"]'),
+      header: box('header.hdr'),
+      panel: box('.panel'),
+      overflow: hdr.scrollWidth > hdr.clientWidth + 1 || sel.scrollWidth > sel.clientWidth + 1,
+      selectorsTotal: r.querySelectorAll('[data-testid="language-selector"]').length,
+      inHeader: hdr.contains(sel),
+      inBody: !!r.querySelector('.body [data-testid="language-selector"], .body .lang-row'),
+      bodyHasLanguageLabel: Array.from(r.querySelectorAll('.body .label')).some((l) =>
+        ['زبان', 'Language'].includes(l.textContent.trim()),
+      ),
+      lang: r.querySelector('.panel').getAttribute('lang'),
+    };
+  });
+}
+const ordered = (l, rtl) =>
+  rtl
+    ? l.brand.x > l.selector.right - 1 && l.selector.x > l.controls.right - 1
+    : l.brand.right < l.selector.x + 1 && l.selector.right < l.controls.x + 1;
+const fitsInside = (l) =>
+  l.brand.x >= l.header.x - 1 &&
+  l.controls.right <= l.header.right + 1 &&
+  l.selector.x >= l.header.x &&
+  l.selector.right <= l.header.right;
+
 async function copyAndRead(p) {
   await p.locator('aj-lens-root [data-testid="copy-full-prompt"]').click();
   await p.waitForTimeout(150);
@@ -327,6 +364,89 @@ try {
       .map((el) => el.textContent.trim()),
   );
   check('no Persian label is clipped', clipped.length === 0, clipped.join(' | '));
+
+  // ---- Header language selector.
+  let hl = await headerLayout(page);
+  check(
+    'single language selector, in the header, none in the body',
+    hl.selectorsTotal === 1 && hl.inHeader && !hl.inBody && !hl.bodyHasLanguageLabel,
+  );
+  check(
+    'Persian active in header selector',
+    (await sr('[data-testid="locale-fa"]').getAttribute('aria-pressed')) === 'true' &&
+      (await txt('[data-testid="locale-fa"]')) === 'فارسی' &&
+      (await txt('[data-testid="locale-en"]')) === 'EN',
+  );
+  check(
+    'RTL header: brand right, selector middle, controls left',
+    ordered(hl, true) && fitsInside(hl) && !hl.overflow,
+    `brand ${Math.round(hl.brand.x)} / selector ${Math.round(hl.selector.x)} / controls ${Math.round(hl.controls.x)}`,
+  );
+  check('header height stays compact', hl.header.height <= 48, `${hl.header.height}px`);
+
+  // Real keyboard activation (Space / Enter) on the header buttons.
+  await sr('[data-testid="locale-en"]').focus();
+  await page.keyboard.press('Space');
+  hl = await headerLayout(page);
+  check(
+    'Space on EN switches to English; LTR header order',
+    hl.lang === 'en' &&
+      (await txt('[data-testid="status"]')) === 'Inspector active' &&
+      ordered(hl, false) &&
+      !hl.overflow,
+  );
+  await sr('[data-testid="locale-fa"]').focus();
+  await page.keyboard.press('Enter');
+  hl = await headerLayout(page);
+  check('Enter on فارسی switches back to Persian', hl.lang === 'fa' && ordered(hl, true));
+
+  // Language-button presses never drag the panel.
+  const posBefore = await panel.boundingBox();
+  const enBox = await sr('[data-testid="locale-en"]').boundingBox();
+  await page.mouse.move(enBox.x + 5, enBox.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(enBox.x - 120, enBox.y + 140, { steps: 5 });
+  await page.mouse.up();
+  const posAfter = await panel.boundingBox();
+  check(
+    'pressing/dragging on the language selector does not move the panel',
+    Math.abs(posAfter.x - posBefore.x) < 1 && Math.abs(posAfter.y - posBefore.y) < 1,
+  );
+  await sr('[data-testid="locale-fa"]').click();
+
+  // Minimized header stays usable in both languages.
+  await sr('[data-testid="minimize"]').click();
+  for (const loc of ['fa', 'en']) {
+    await sr(`[data-testid="locale-${loc}"]`).click();
+    hl = await headerLayout(page);
+    check(
+      `minimized header (${loc}) fits without overflow`,
+      hl.lang === loc && !hl.overflow && fitsInside(hl) && ordered(hl, loc === 'fa'),
+      `${Math.round(hl.panel.width)}px wide`,
+    );
+  }
+  await sr('[data-testid="locale-fa"]').click();
+  await sr('[data-testid="minimize"]').click();
+
+  // Browser zoom 125% / 150% ≈ CSS viewport 1024 / 853 px wide at 1280 device px.
+  for (const [w, h, label] of [
+    [1024, 640, '125%'],
+    [853, 533, '150%'],
+  ]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(150);
+    hl = await headerLayout(page);
+    check(
+      `header fits at ${label} zoom-equivalent width`,
+      !hl.overflow && fitsInside(hl) && hl.panel.right <= w + 1 && hl.panel.x >= 0,
+    );
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(150);
+  // Leave focus on the page: Enter on a focused panel button activates that button, not "lock".
+  await page.evaluate(() =>
+    document.querySelector('aj-lens-root').shadowRoot.activeElement?.blur(),
+  );
   // Restore the default build target so prompt assertions below stay comparable.
   await page.locator('aj-lens-root select').selectOption('existing');
   check(
@@ -571,6 +691,18 @@ try {
       );
     }
     await page.screenshot({ path: join(process.env.SMOKE_ARTIFACTS, 'page-with-panel.png') });
+    // Header screenshots (Persian, English) for the documentation.
+    await page
+      .locator('aj-lens-root header.hdr')
+      .screenshot({ path: join(process.env.SMOKE_ARTIFACTS, 'header-fa.png') });
+    await page.locator('aj-lens-root [data-testid="locale-en"]').click();
+    await page
+      .locator('aj-lens-root header.hdr')
+      .screenshot({ path: join(process.env.SMOKE_ARTIFACTS, 'header-en.png') });
+    await page
+      .locator('aj-lens-root .panel')
+      .screenshot({ path: join(process.env.SMOKE_ARTIFACTS, 'panel-en.png') });
+    await page.locator('aj-lens-root [data-testid="locale-fa"]').click();
     // Full-height Persian panel for the documentation.
     await page.setViewportSize({ width: 1280, height: 1500 });
     await page.waitForTimeout(150);

@@ -5,9 +5,24 @@
 export type Locale = 'fa' | 'en';
 
 export const DEFAULT_LOCALE: Locale = 'fa';
-export const LOCALES: { value: Locale; label: string }[] = [
-  { value: 'fa', label: 'فارسی' },
-  { value: 'en', label: 'English' },
+export interface LocaleOption {
+  value: Locale;
+  /** Full name in its own language. */
+  label: string;
+  /** Compact header label: "فارسی" is never abbreviated; English becomes "EN". */
+  shortLabel: string;
+  /** Accessible name, written in the target language itself (announced with that lang). */
+  ariaLabel: string;
+}
+
+export const LOCALES: LocaleOption[] = [
+  { value: 'fa', label: 'فارسی', shortLabel: 'فارسی', ariaLabel: 'تغییر زبان رابط به فارسی' },
+  {
+    value: 'en',
+    label: 'English',
+    shortLabel: 'EN',
+    ariaLabel: 'Change interface language to English',
+  },
 ];
 
 export function isLocale(value: unknown): value is Locale {
@@ -52,7 +67,7 @@ const en = {
   cancel: 'Cancel',
   overlayLocked: 'Locked',
   // Settings
-  language: 'Language',
+  languageGroup: 'Select interface language',
   buildWith: 'Build with',
   buildExisting: 'Follow the existing project stack',
   buildCustom: 'Custom instructions',
@@ -190,7 +205,7 @@ const fa: Messages = {
   captureScroll: 'نمایش کامل بخش و ثبت تصویر',
   cancel: 'انصراف',
   overlayLocked: 'قفل‌شده',
-  language: 'زبان',
+  languageGroup: 'انتخاب زبان رابط',
   buildWith: 'فناوری ساخت',
   buildExisting: 'پیروی از فناوری‌های موجود پروژه',
   buildCustom: 'دستورهای سفارشی',

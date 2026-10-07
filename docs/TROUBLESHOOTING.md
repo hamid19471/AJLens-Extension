@@ -44,7 +44,7 @@ Stylesheets served from another origin without CORS cannot be read. The analysis
 
 ### The panel is in Persian; I want English (or the reverse)
 
-The AJ Lens interface is Persian by default, whatever your browser language is. To switch, use the **زبان / Language** selector in the panel and choose **English** or **فارسی**. The change applies immediately and is saved, so it's kept the next time you open the panel. Generated prompts and exported files are always English, whichever interface language you use.
+The AJ Lens interface is Persian by default, whatever your browser language is. To switch, use the **فارسی | EN** selector in the panel header and choose **EN** or **فارسی**. The change applies immediately and is saved, so it's kept the next time you open the panel. Generated prompts and exported files are always English, whichever interface language you use.
 
 ### The panel still shows the old interface after an update
 

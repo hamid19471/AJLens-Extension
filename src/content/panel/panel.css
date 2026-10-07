@@ -112,14 +112,17 @@
 }
 
 .panel.minimized {
-  width: 220px;
+  width: 264px;
 }
 
+/* Header: brand | language selector | window controls. Grid columns follow the panel's
+   direction, so RTL puts the brand on the right and the controls on the left. */
 .hdr {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 10px 10px 10px 12px;
+  padding: 9px 10px 9px 12px;
   border-bottom: 1px solid var(--ajl-border);
   cursor: grab;
   user-select: none;
@@ -145,8 +148,74 @@
   letter-spacing: -0.005em;
 }
 
-.spacer {
-  flex: 1;
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.language-selector {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ajl-border);
+  border-radius: var(--ajl-control-radius);
+  background: var(--ajl-surface);
+  cursor: default;
+}
+
+.language-selector button {
+  all: unset;
+  box-sizing: border-box;
+  text-align: center;
+  padding: 4px 10px;
+  border-radius: 5px;
+  color: var(--ajl-text-muted);
+  font: 500 11.5px/1.2 var(--ajl-font);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.language-selector button[lang='fa'] {
+  font-family: Vazirmatn, 'Yekan Bakh', Tahoma, Arial, sans-serif;
+}
+
+.language-selector button:hover:not(.on) {
+  color: var(--ajl-text);
+}
+
+.language-selector button.on {
+  background: var(--ajl-surface-elevated);
+  color: var(--ajl-text);
+  box-shadow: inset 0 0 0 1px var(--ajl-border-active);
+}
+
+.language-selector button:focus-visible {
+  outline: 2px solid var(--ajl-accent);
+  outline-offset: 1px;
+}
+
+.language-selector--compact {
+  justify-self: center;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.language-selector--compact button {
+  min-width: 38px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  line-height: 20px;
 }
 
 .mini-dot {
@@ -760,20 +829,6 @@
   direction: ltr;
   text-align: left;
   unicode-bidi: isolate;
-}
-
-.lang-row {
-  align-items: center;
-  margin: 0 0 10px;
-}
-
-.lang-row .label {
-  margin: 0;
-}
-
-.lang-seg {
-  width: 160px;
-  margin: 0;
 }
 
 .panel[dir='rtl'] {
