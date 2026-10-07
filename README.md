@@ -46,9 +46,23 @@ Exports are saved to `Downloads/aj-lens/<host>-<type>-<timestamp>/`, so the thre
 4. Click **Load unpacked** and choose the `dist/` folder.
 5. Pin **AJ Lens** to the toolbar (puzzle-piece menu → pin).
 
+**After every rebuild or update:** Chrome does not reload unpacked extensions automatically. Open `chrome://extensions`, click **Reload** on AJ Lens, then refresh the website you are inspecting.
+
 A prebuilt archive is created by `npm run package` at `release/aj-lens-1.0.0.zip`. To use it, unzip it and load the unzipped folder the same way.
 
 Requires Chrome 127 or newer (any Chromium browser that supports MV3 should work).
+
+## Interface language
+
+The AJ Lens interface is **Persian (فارسی) by default**, with a full right-to-left layout. The language does not follow the browser language: an English Chrome still opens AJ Lens in Persian until you choose otherwise.
+
+- Switch with the **زبان / Language** selector in the panel (**فارسی** or **English**). The panel updates immediately, and the choice is saved in `chrome.storage.local`.
+- Existing installs with no saved language are migrated to Persian. Other preferences (panel position, prompt mode, build target, include options) are kept.
+- **Generated prompts are always English**: detailed and compact prompts, their headings, `reconstruction-prompt.md` and the JSON keys in `section-analysis.json`. Persian text captured from a website is kept as-is inside the English prompt.
+- Technical values stay left-to-right inside the Persian UI: selectors, tag names, dimensions, `px`, filenames, URLs, raw browser errors and the prompt editor.
+- The extension description and keyboard-shortcut description are localized through `_locales/fa` and `_locales/en`. The name is always **AJ Lens**.
+
+![AJ Lens panel in Persian](docs/images/aj-lens-panel-fa.png)
 
 ## Using AJ Lens
 
@@ -62,7 +76,7 @@ Requires Chrome 127 or newer (any Chromium browser that supports MV3 should work
    - captures and crops a reference screenshot
    - classifies the section and generates the prompt
 6. Choose **BUILD WITH** (existing stack, React, Next.js, Vue, Nuxt, Svelte, Astro, HTML/CSS/JS, Tailwind, or custom instructions), **Detailed** or **Compact**, and what the prompt should include.
-7. Click **Copy full prompt** (Persian UI: **کپی کامل پرامپت**) to copy the complete prompt for the selected mode in one click, or save `prompt.md`, `reference.png` and `analysis.json`. The copy always uses the full generated prompt, not the visible part of the text box.
+7. Click **کپی کامل پرامپت** (English UI: **Copy full prompt**) to copy the complete prompt for the selected mode in one click, or save `prompt.md`, `reference.png` and `analysis.json`. The copy always uses the full generated prompt, not the visible part of the text box.
 8. Click **Unlock section** or **Pick another** to continue.
 
 The panel can be dragged by its header and minimized. Its position, minimized state and prompt settings are remembered.

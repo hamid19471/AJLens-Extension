@@ -42,7 +42,17 @@ Stylesheets served from another origin without CORS cannot be read. The analysis
 
 **Copy full prompt** first uses the Clipboard API. If the page blocks it, AJ Lens tries a fallback: it copies through a temporary hidden text box inside its own panel and removes it immediately. If both fail (some sites lock down clipboard access), click inside the panel and try again, or use **Save prompt.md**. The copied text is always the complete prompt for the selected mode (Detailed or Compact), not just the part visible in the text box.
 
-**Language:** the copy button and its messages follow your browser language. Persian (`fa`) shows کپی کامل پرامپت / پرامپت کامل کپی شد; every other language shows English. The prompt itself is always English, and Persian text captured from the page is kept as-is.
+### The panel is in Persian; I want English (or the reverse)
+
+The AJ Lens interface is Persian by default, whatever your browser language is. To switch, use the **زبان / Language** selector in the panel and choose **English** or **فارسی**. The change applies immediately and is saved, so it's kept the next time you open the panel. Generated prompts and exported files are always English, whichever interface language you use.
+
+### The panel still shows the old interface after an update
+
+Chrome does not reload unpacked extensions on its own. After rebuilding:
+
+1. Open `chrome://extensions`.
+2. Find **AJ Lens** and click **Reload** (the circular arrow).
+3. Refresh the website you are inspecting. Pages that were already open still run the old script until they are refreshed.
 
 ### Downloads go to an unexpected place
 

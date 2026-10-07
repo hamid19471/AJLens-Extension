@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="utf-8" />
     <title>AJ Lens</title>
@@ -9,15 +9,18 @@
       }
       body {
         margin: 0;
-        width: 300px;
+        width: 320px;
         background: #0d1312;
         color: #f2f4ef;
         font:
-          13px/1.5 ui-sans-serif,
+          13px/1.6 ui-sans-serif,
           system-ui,
           -apple-system,
           'Segoe UI',
           sans-serif;
+      }
+      html[dir='rtl'] body {
+        font-family: Vazirmatn, 'Yekan Bakh', Tahoma, Arial, sans-serif;
       }
       .wrap {
         padding: 14px 16px 16px;
@@ -32,18 +35,38 @@
       .label {
         margin: 12px 0 4px;
         color: #d56d6d;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      html[dir='ltr'] .label {
         font-size: 10.5px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        font-weight: 600;
       }
       p {
         margin: 0;
+        unicode-bidi: plaintext;
       }
       .muted {
         margin-top: 10px;
         color: #9da7a3;
         font-size: 12px;
+      }
+      #detail {
+        margin-top: 8px;
+        direction: ltr;
+        unicode-bidi: isolate;
+        text-align: left;
+        color: #9da7a3;
+        font:
+          11px/1.4 ui-monospace,
+          Menlo,
+          Consolas,
+          monospace;
+        word-break: break-word;
+      }
+      #detail:empty {
+        display: none;
       }
     </style>
   </head>
@@ -51,11 +74,17 @@
     <div class="wrap">
       <header>
         <img src="icons/icon-32.png" width="18" height="18" alt="" />
-        AJ Lens
+        <bdi dir="ltr">AJ Lens</bdi>
       </header>
-      <div class="label">Unavailable on this page</div>
-      <p id="reason" role="status">AJ Lens cannot run on this page.</p>
-      <p class="muted">Open a regular website (http/https) and click the toolbar icon again.</p>
+      <div class="label" id="heading">در این صفحه در دسترس نیست</div>
+      <p id="reason" role="status">
+        AJ Lens نمی‌تواند در صفحات داخلی مرورگر یا فروشگاه Chrome اجرا شود. یک وب‌سایت معمولی را باز
+        کنید و دوباره تلاش کنید.
+      </p>
+      <p class="muted" id="hint">
+        یک وب‌سایت معمولی (http/https) را باز کنید و دوباره روی آیکون افزونه کلیک کنید.
+      </p>
+      <p id="detail"></p>
     </div>
     <script src="notice.js"></script>
   </body>

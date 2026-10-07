@@ -7,24 +7,59 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import type { InspectorController } from '../controller';
 import type { BuildTarget, IncludeOptions } from '../../shared/preferences';
-import { BUILD_TARGETS, INCLUDE_LABELS } from '../../shared/preferences';
-import { STAGE_LABELS, STAGE_ORDER } from '../../shared/types';
+import { BUILD_TARGETS, INCLUDE_MESSAGE_KEYS } from '../../shared/preferences';
+import { STAGE_MESSAGE_KEYS, STAGE_ORDER } from '../../shared/types';
 import { clampToViewport } from '../../core/geometry';
 import { LensIcon } from './LensIcon';
-import { COPY_STRINGS } from '../i18n';
+import {
+  LOCALES,
+  dirFor,
+  format,
+  formatNumber,
+  messages,
+  type Locale,
+  type Messages,
+} from '../../shared/i18n';
 import type { ReferenceImage } from '../store';
 
-const PANEL_WIDTH = 340;
+const PANEL_WIDTH = 360;
 const MARGIN = 16;
 
 function defaultPosition(): { x: number; y: number } {
   return { x: Math.max(8, window.innerWidth - PANEL_WIDTH - MARGIN), y: MARGIN };
 }
 
-function ReferencePreview({ image }: { image: ReferenceImage }) {
+/** Technical content (selectors, sizes, filenames) stays LTR inside RTL text. */
+function Ltr({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <bdi dir="ltr" className={`ltr ${className}`.trim()}>
+      {children}
+    </bdi>
+  );
+}
+
+function buildTargetLabel(value: BuildTarget, fallback: string, t: Messages): string {
+  if (value === 'existing') return t.buildExisting;
+  if (value === 'custom') return t.buildCustom;
+  return fallback; // Technology names are never translated.
+}
+
+/** Persian labels for filenames: translated verb + LTR-isolated filename. */
+function SaveLabel({ text, file }: { text: string; file: string }) {
+  const [before, after] = text.split(file);
+  return (
+    <>
+      {before}
+      <Ltr>{file}</Ltr>
+      {after}
+    </>
+  );
+}
+
+function ReferencePreview({ image, t }: { image: ReferenceImage; t: Messages }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     let cancelled = false;
@@ -54,10 +89,12 @@ function ReferencePreview({ image }: { image: ReferenceImage }) {
       <canvas
         ref={ref}
         role="img"
-        aria-label={`Captured reference, ${image.width} by ${image.height} pixels`}
+        aria-label={format(t.referenceAlt, { width: image.width, height: image.height })}
       />
       <figcaption>
-        reference.png · {image.width} × {image.height} px
+        <Ltr>
+          reference.png · {image.width} × {image.height} px
+        </Ltr>
       </figcaption>
     </figure>
   );
@@ -78,6 +115,7 @@ export function Panel({ controller }: { controller: InspectorController }) {
   const customId = useId();
   const promptId = useId();
   const copyStatusId = useId();
+  const languageId = useId();
   const locked = mode === 'locked';
 
   // Adopt the stored position once preferences load.
@@ -134,8 +172,12 @@ export function Panel({ controller }: { controller: InspectorController }) {
   const progress = stage ? Math.round(((stageIndex + 1) / STAGE_ORDER.length) * 100) : 0;
   const ready = stage === 'ready' && !!analysis && prompt.length > 0;
   const generating = stage !== null && stage !== 'ready';
-  const t = COPY_STRINGS[state.locale];
-  const dir = state.locale === 'fa' ? 'rtl' : 'ltr';
+  const locale: Locale = prefs.locale;
+  const t = messages(locale);
+  const dir = dirFor(locale);
+  const num = (n: number) => formatNumber(n, locale);
+  // "·" is easily confused with the Persian zero "۰", so Persian uses the Persian comma.
+  const sep = locale === 'fa' ? '، ' : ' · ';
 
   const setInclude = (key: keyof IncludeOptions, value: boolean) =>
     controller.setPrefs({ include: { ...prefs.include, [key]: value } });
@@ -146,7 +188,10 @@ export function Panel({ controller }: { controller: InspectorController }) {
       className={`panel${prefs.minimized ? ' minimized' : ''}`}
       style={{ transform: `translate(${clamped.x}px, ${clamped.y}px)` }}
       role="region"
-      aria-label="AJ Lens inspector"
+      aria-label={t.panelRegion}
+      lang={locale}
+      dir={dir}
+      data-testid="panel"
       tabIndex={-1}
     >
       <header
@@ -155,10 +200,12 @@ export function Panel({ controller }: { controller: InspectorController }) {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        title="Drag to move"
+        title={t.dragToMove}
       >
         <LensIcon />
-        <span className="brand">AJ Lens</span>
+        <bdi className="brand" dir="ltr">
+          AJ Lens
+        </bdi>
         {prefs.minimized && (
           <span className={`mini-dot${locked ? ' locked' : ''}`} aria-hidden="true" />
         )}
@@ -166,7 +213,8 @@ export function Panel({ controller }: { controller: InspectorController }) {
         <button
           type="button"
           className="icon-btn"
-          aria-label={prefs.minimized ? 'Expand panel' : 'Minimize panel'}
+          aria-label={prefs.minimized ? t.expandPanel : t.minimizePanel}
+          title={prefs.minimized ? t.expandPanel : t.minimizePanel}
           aria-expanded={!prefs.minimized}
           onClick={() => controller.setPrefs({ minimized: !prefs.minimized })}
         >
@@ -183,7 +231,8 @@ export function Panel({ controller }: { controller: InspectorController }) {
         <button
           type="button"
           className="icon-btn"
-          aria-label="Close AJ Lens"
+          aria-label={t.closePanel}
+          title={t.closePanel}
           onClick={() => controller.close()}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -194,38 +243,47 @@ export function Panel({ controller }: { controller: InspectorController }) {
 
       {!prefs.minimized && (
         <div className="body">
-          <div className={`status${locked ? ' locked' : ''}`}>
+          <div className={`status${locked ? ' locked' : ''}`} data-testid="status">
             <span className="dot" aria-hidden="true" />
-            {locked ? 'SECTION LOCKED' : 'INSPECTOR ACTIVE'}
+            <span>{locked ? t.sectionLocked : t.inspectorActive}</span>
           </div>
-          <h2 className="tagline">Point. Capture. Rebuild.</h2>
-          <p className="desc">
-            Hover over a section to generate its prompt. Click the page to lock it and capture a
-            reference.
-          </p>
+          <h2 className="tagline">{t.tagline}</h2>
+          <p className="desc">{t.description}</p>
 
-          <div className={`card selection${locked ? ' locked' : ''}`} aria-live="off">
+          <div
+            className={`card selection${locked ? ' locked' : ''}`}
+            aria-live="off"
+            aria-label={t.selectedSection}
+            role="group"
+          >
             {candidate ? (
               <>
-                <div className="sel-head">
+                <div className="sel-head" dir="ltr">
                   <span className="tag">{candidate.tag}</span>
                   <code className="selector" title={candidate.selector}>
                     {candidate.selector}
                   </code>
                 </div>
-                <div className="meta">
-                  {candidate.width} × {candidate.height} px · {candidate.descendants} elements ·{' '}
-                  {candidate.assets}
-                  {candidate.assetsMeasured ? '' : '~'} assets
+                <div className="meta" data-testid="selection-meta">
+                  <Ltr className="dims">
+                    {candidate.width} × {candidate.height} px
+                  </Ltr>
+                  {sep}
+                  {num(candidate.descendants)} {t.elementsUnit}
+                  {sep}
+                  <span title={candidate.assetsMeasured ? undefined : t.assetsEstimated}>
+                    {candidate.assetsMeasured ? '' : '~'}
+                    {num(candidate.assets)} {t.assetsUnit}
+                  </span>
                 </div>
                 {candidate.accessibleName && (
-                  <div className="aname">“{candidate.accessibleName}”</div>
+                  <div className="aname" dir="auto">
+                    “{candidate.accessibleName}”
+                  </div>
                 )}
               </>
             ) : (
-              <div className="meta empty">
-                No section selected yet — move the pointer over the page.
-              </div>
+              <div className="meta empty">{t.noSectionSelected}</div>
             )}
           </div>
 
@@ -233,67 +291,90 @@ export function Panel({ controller }: { controller: InspectorController }) {
             <div
               className={`notice ${notice.kind}`}
               role={notice.kind === 'error' ? 'alert' : 'status'}
+              data-testid="notice"
             >
-              <span>{notice.text}</span>
+              <span>
+                {format(t[notice.key], notice.params ?? {})}
+                {notice.detail && (
+                  <span className="detail">
+                    {t.errorDetail}: <Ltr>{notice.detail}</Ltr>
+                  </span>
+                )}
+              </span>
               <button
                 type="button"
                 className="link-btn"
                 onClick={() => controller.dismissNotice()}
-                aria-label="Dismiss message"
+                aria-label={t.dismissMessage}
+                title={t.dismissMessage}
               >
                 ×
               </button>
             </div>
           )}
 
-          <div className="controls">
+          <div className="controls" role="group" aria-label={t.selectionControls}>
             <button
               type="button"
               className="btn"
               onClick={() => controller.navigate('up')}
               disabled={!candidate}
-              title="Arrow Up"
+              title={`${t.parent} (↑)`}
+              data-testid="nav-parent"
             >
-              ↑ Parent
+              <span aria-hidden="true">↑</span> {t.parent}
             </button>
             <button
               type="button"
               className="btn"
               onClick={() => controller.navigate('down')}
               disabled={!candidate}
-              title="Arrow Down"
+              title={`${t.smaller} (↓)`}
+              data-testid="nav-child"
             >
-              ↓ Smaller
+              <span aria-hidden="true">↓</span> {t.smaller}
             </button>
-            <button type="button" className="btn" onClick={() => controller.pickAnother()}>
-              Pick another
+            <button
+              type="button"
+              className="btn"
+              onClick={() => controller.pickAnother()}
+              data-testid="pick-another"
+            >
+              {t.pickAnother}
             </button>
             <button
               type="button"
               className={`btn ${locked ? 'secondary' : 'primary'} wide`}
               onClick={() => controller.toggleLock()}
               disabled={!candidate && !locked}
-              title={locked ? 'Unlock section' : 'Enter'}
+              title={locked ? t.unlockSection : `${t.lockSection} (Enter)`}
+              data-testid="lock-toggle"
             >
-              {locked ? 'Unlock section' : 'Lock section'}
+              {locked ? t.unlockSection : t.lockSection}
             </button>
             <button
               type="button"
               className="btn"
               onClick={() => controller.refresh()}
               disabled={!candidate}
-              title="R"
-              aria-label="Refresh measurement"
+              title={`${t.refreshMeasurement} (R)`}
+              aria-label={t.refreshMeasurement}
+              data-testid="refresh"
             >
-              ↻ Refresh
+              <span aria-hidden="true">↻</span> {t.refresh}
             </button>
           </div>
 
           {captureChoice && (
-            <div className="choice" role="group" aria-label="Partial capture options">
+            <div
+              className="choice"
+              role="group"
+              aria-label={t.partialCaptureGroup}
+              data-testid="capture-choice"
+            >
               <p>
-                Only {captureChoice.visiblePercent}% of this section is in the viewport. How should
-                the reference be captured?
+                {t.partialOutside}{' '}
+                {format(t.partialVisible, { percent: num(captureChoice.visiblePercent) })}
               </p>
               <div className="choice-actions">
                 <button
@@ -301,53 +382,81 @@ export function Panel({ controller }: { controller: InspectorController }) {
                   className="btn"
                   onClick={() => controller.chooseCapture('visible')}
                   disabled={captureChoice.visiblePercent === 0}
+                  data-testid="capture-visible"
                 >
-                  Capture visible area
+                  {t.captureVisible}
                 </button>
                 <button
                   type="button"
                   className="btn primary"
                   onClick={() => controller.chooseCapture('scroll')}
+                  data-testid="capture-scroll"
                 >
-                  Scroll into view and capture
+                  {t.captureScroll}
                 </button>
                 <button
                   type="button"
                   className="btn ghost"
                   onClick={() => controller.chooseCapture('cancel')}
+                  data-testid="capture-cancel"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
               </div>
             </div>
           )}
 
+          <div className="label-row lang-row">
+            <span className="label" id={languageId}>
+              {t.language}
+            </span>
+            <div className="seg lang-seg" role="radiogroup" aria-labelledby={languageId}>
+              {LOCALES.map((l) => (
+                <button
+                  key={l.value}
+                  type="button"
+                  role="radio"
+                  lang={l.value}
+                  dir={dirFor(l.value)}
+                  aria-checked={locale === l.value}
+                  className={locale === l.value ? 'on' : ''}
+                  data-testid={`locale-${l.value}`}
+                  onClick={() => controller.setPrefs({ locale: l.value })}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <label className="label" htmlFor={buildId}>
-            BUILD WITH
+            {t.buildWith}
           </label>
           <select
             id={buildId}
             className="select"
             value={prefs.buildTarget}
+            data-testid="build-target"
             onChange={(e) => controller.setPrefs({ buildTarget: e.target.value as BuildTarget })}
           >
-            {BUILD_TARGETS.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            {BUILD_TARGETS.map((b) => (
+              <option key={b.value} value={b.value}>
+                {buildTargetLabel(b.value, b.label, t)}
               </option>
             ))}
           </select>
           {prefs.buildTarget === 'custom' && (
             <>
               <label className="sr-only" htmlFor={customId}>
-                Custom build instructions
+                {t.customInstructionsLabel}
               </label>
               <textarea
                 id={customId}
                 className="custom"
                 rows={3}
                 maxLength={4000}
-                placeholder="e.g. Use our <Card> component, Tailwind tokens from theme.ts, and put it in src/sections/"
+                dir="auto"
+                placeholder={t.customPlaceholder}
                 value={prefs.customInstructions}
                 onChange={(e) => controller.setPrefs({ customInstructions: e.target.value })}
               />
@@ -356,14 +465,19 @@ export function Panel({ controller }: { controller: InspectorController }) {
 
           <div className="label-row">
             <label className="label" htmlFor={promptId}>
-              RECONSTRUCTION PROMPT
+              {t.reconstructionPrompt}
             </label>
-            <span className="count" aria-live="off">
-              {prompt ? `${prompt.length.toLocaleString()} chars` : '—'}
+            <span
+              className="count"
+              aria-live="off"
+              data-testid="char-count"
+              data-count={prompt.length}
+            >
+              {prompt ? `${num(prompt.length)} ${t.characters}` : '—'}
             </span>
           </div>
 
-          <div className="seg" role="radiogroup" aria-label="Prompt detail">
+          <div className="seg" role="radiogroup" aria-label={t.promptDetail}>
             {(['detailed', 'compact'] as const).map((d) => (
               <button
                 key={d}
@@ -371,18 +485,19 @@ export function Panel({ controller }: { controller: InspectorController }) {
                 role="radio"
                 aria-checked={prefs.promptDetail === d}
                 className={prefs.promptDetail === d ? 'on' : ''}
+                data-testid={`mode-${d}`}
                 onClick={() => controller.setPrefs({ promptDetail: d })}
               >
-                {d === 'detailed' ? 'Detailed' : 'Compact'}
+                {d === 'detailed' ? t.detailed : t.compact}
               </button>
             ))}
           </div>
 
           {stage && (
-            <div className="progress" aria-hidden={stage === 'ready'}>
+            <div className="progress" aria-hidden={stage === 'ready'} data-testid="progress">
               <div className="progress-text">
-                <span>{STAGE_LABELS[stage]}</span>
-                <span>{progress}%</span>
+                <span>{t[STAGE_MESSAGE_KEYS[stage]]}</span>
+                <span>{locale === 'fa' ? `${num(progress)}٪` : `${progress}%`}</span>
               </div>
               <div
                 className="bar"
@@ -390,25 +505,27 @@ export function Panel({ controller }: { controller: InspectorController }) {
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={progress}
-                aria-label="Analysis progress"
+                aria-label={t.analysisProgress}
               >
                 <div style={{ width: `${progress}%` }} />
               </div>
             </div>
           )}
 
+          {/* The generated prompt is always English: keep the editor LTR regardless of locale. */}
           <textarea
             id={promptId}
             className="prompt"
             readOnly
+            lang="en"
+            dir="ltr"
+            aria-description={t.promptPreview}
             value={prompt}
-            placeholder={
-              locked ? 'Analyzing…' : 'Lock a section to generate its reconstruction prompt.'
-            }
+            placeholder={locked ? t.promptPlaceholderBusy : t.promptPlaceholderIdle}
             spellCheck={false}
           />
 
-          {reference && <ReferencePreview image={reference} />}
+          {reference && <ReferencePreview image={reference} t={t} />}
 
           <div className="actions">
             <div className="copy-block wide">
@@ -418,25 +535,22 @@ export function Panel({ controller }: { controller: InspectorController }) {
                 data-testid="copy-full-prompt"
                 disabled={!ready}
                 aria-busy={generating}
-                aria-label={t.copyAriaLabel}
+                aria-label={t.copyFullPromptAria}
                 aria-describedby={copyStatusId}
-                lang={state.locale}
-                dir={dir}
                 onClick={() => void controller.copyPrompt()}
-                title={`${t.copyLabel} (C)`}
+                title={`${t.copyFullPrompt} (C)`}
               >
-                {state.copyStatus === 'copied' ? `${t.copied} ✓` : t.copyLabel}
+                {state.copyStatus === 'copied' ? `${t.fullPromptCopied} ✓` : t.copyFullPrompt}
               </button>
               <div
                 id={copyStatusId}
                 className={`copy-status${state.copyStatus === 'failed' ? ' failed' : ''}`}
-                lang={state.locale}
-                dir={dir}
+                data-testid="copy-status"
               >
                 {state.copyStatus === 'failed'
                   ? t.copyFailed
                   : generating
-                    ? t.preparing
+                    ? t.generatingPrompt
                     : ready
                       ? prefs.promptDetail === 'detailed'
                         ? t.modeDetailed
@@ -448,39 +562,42 @@ export function Panel({ controller }: { controller: InspectorController }) {
               type="button"
               className="btn"
               disabled={!ready}
+              data-testid="save-prompt"
               onClick={() => void controller.savePrompt()}
             >
-              Save prompt.md
+              <SaveLabel text={t.savePrompt} file="prompt.md" />
             </button>
             <button
               type="button"
               className="btn"
               disabled={!ready || !reference}
+              data-testid="save-reference"
               onClick={() => void controller.saveReference()}
             >
-              Save reference.png
+              <SaveLabel text={t.saveReference} file="reference.png" />
             </button>
             <button
               type="button"
               className="btn"
               disabled={!ready}
+              data-testid="save-analysis"
               onClick={() => void controller.saveAnalysis()}
             >
-              Save analysis.json
+              <SaveLabel text={t.saveAnalysis} file="analysis.json" />
             </button>
           </div>
 
           <details className="options">
-            <summary>Include in prompt</summary>
+            <summary>{t.includeInPrompt}</summary>
             <div className="checks">
-              {(Object.keys(INCLUDE_LABELS) as (keyof IncludeOptions)[]).map((key) => (
+              {(Object.keys(INCLUDE_MESSAGE_KEYS) as (keyof IncludeOptions)[]).map((key) => (
                 <label key={key} className="check">
                   <input
                     type="checkbox"
                     checked={prefs.include[key]}
                     onChange={(e) => setInclude(key, e.target.checked)}
                   />
-                  <span>{INCLUDE_LABELS[key]}</span>
+                  <span>{t[INCLUDE_MESSAGE_KEYS[key]]}</span>
                 </label>
               ))}
             </div>
@@ -489,11 +606,17 @@ export function Panel({ controller }: { controller: InspectorController }) {
       )}
 
       {!prefs.minimized && (
-        <footer className="ftr">
-          <div>Esc closes · ↑/↓ changes selection · Click locks</div>
+        <footer className="ftr" data-testid="footer">
+          <div className="keys">
+            <span>{t.footerEsc}</span>
+            <span aria-hidden="true">{locale === 'fa' ? ' | ' : ' · '}</span>
+            <span>{t.footerArrows}</span>
+            <span aria-hidden="true">{locale === 'fa' ? ' | ' : ' · '}</span>
+            <span>{t.footerClick}</span>
+          </div>
           <div className="private">
             <span className="dot" aria-hidden="true" />
-            Measured locally. Nothing is uploaded.
+            <span>{t.footerPrivate}</span>
           </div>
         </footer>
       )}

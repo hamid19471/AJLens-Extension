@@ -94,6 +94,8 @@ try {
     headless: true,
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 2,
+    // English browser with no stored AJ Lens locale: the panel must still open in Persian.
+    locale: 'en-US',
     args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`, '--headless=new'],
   });
 
@@ -115,10 +117,36 @@ try {
 
   check('toolbar title is AJ Lens', manifest.action?.default_title === 'AJ Lens');
   check('short name is AJ Lens', manifest.short_name === 'AJ Lens');
+  const rawManifest = JSON.parse(readFileSync(resolve(dist, 'manifest.json'), 'utf8'));
+  const localeMsgs = (l) =>
+    JSON.parse(readFileSync(resolve(dist, '_locales', l, 'messages.json'), 'utf8'));
   check(
-    'command description uses AJ Lens',
-    manifest.commands?._execute_action?.description === 'Toggle the AJ Lens inspector',
+    'command description localized via _locales (fa + en)',
+    rawManifest.commands._execute_action.description === '__MSG_commandToggle__' &&
+      rawManifest.description === '__MSG_extDescription__' &&
+      // English browser → Chrome resolves the English message.
+      manifest.commands?._execute_action?.description === 'Toggle the AJ Lens inspector' &&
+      localeMsgs('fa').commandToggle.message === 'فعال یا غیرفعال‌کردن بازرس AJ Lens' &&
+      localeMsgs('en').commandToggle.message === 'Toggle the AJ Lens inspector' &&
+      manifest.default_locale === 'fa',
   );
+  check(
+    'Chrome resolves the localized description',
+    (await sw.evaluate(() => chrome.i18n.getMessage('extDescription'))).length > 20,
+  );
+
+  // Restricted-page popup renders in Persian.
+  const noticePage = await context.newPage();
+  await noticePage.goto(
+    sw.url().replace('background.js', 'notice.html?key=restrictedBrowser&lang=fa'),
+  );
+  check(
+    'restricted-page popup is Persian and RTL',
+    (await noticePage.locator('#reason').textContent()) ===
+      'AJ Lens نمی‌تواند در صفحات داخلی مرورگر یا فروشگاه Chrome اجرا شود. یک وب‌سایت معمولی را باز کنید و دوباره تلاش کنید.' &&
+      (await noticePage.evaluate(() => document.documentElement.dir)) === 'rtl',
+  );
+  await noticePage.close();
 
   // ---- 2. Content script end-to-end against the fixture with a stubbed runtime.
   const page = await context.newPage();
@@ -229,16 +257,87 @@ try {
     !migrated.legacy && migrated.current === 'nextjs' && migrated.shown === 'nextjs',
     JSON.stringify(migrated),
   );
+  check(
+    'no stored locale + English browser → Persian saved as default',
+    (await page.evaluate(() => window.__ajlStored['aj-lens.preferences']?.locale)) === 'fa' &&
+      (await page.evaluate(() => navigator.language)) === 'en-US',
+  );
+  const sr = (sel) => page.locator(`aj-lens-root ${sel}`);
+  const txt = async (sel) => ((await sr(sel).first().textContent()) ?? '').trim();
+  check(
+    'panel root is lang="fa" dir="rtl"',
+    (await panel.getAttribute('lang')) === 'fa' && (await panel.getAttribute('dir')) === 'rtl',
+  );
+  check('inspector state is Persian', (await txt('[data-testid="status"]')) === 'بازرس فعال است');
+  check(
+    'heading and description are Persian',
+    (await txt('.tagline')) === 'انتخاب کنید، ثبت کنید، بازسازی کنید.' &&
+      (await txt('.desc')).startsWith('نشانگر را روی یک بخش ببرید'),
+  );
+  const persianButtons = {
+    '[data-testid="nav-parent"]': '↑ والد',
+    '[data-testid="nav-child"]': '↓ بخش کوچک‌تر',
+    '[data-testid="pick-another"]': 'انتخاب بخش دیگر',
+    '[data-testid="lock-toggle"]': 'قفل‌کردن بخش',
+    '[data-testid="refresh"]': '↻ اندازه‌گیری دوباره',
+    '[data-testid="mode-detailed"]': 'کامل',
+    '[data-testid="mode-compact"]': 'خلاصه',
+    '[data-testid="copy-full-prompt"]': 'کپی کامل پرامپت',
+    '[data-testid="save-prompt"]': 'ذخیره prompt.md',
+    '[data-testid="save-reference"]': 'ذخیره reference.png',
+    '[data-testid="save-analysis"]': 'ذخیره analysis.json',
+  };
+  const wrongButtons = [];
+  for (const [sel, want] of Object.entries(persianButtons)) {
+    const got = await txt(sel);
+    if (got !== want) wrongButtons.push(`${sel}: "${got}"`);
+  }
+  check(
+    'buttons, prompt tabs, copy and export buttons are Persian',
+    wrongButtons.length === 0,
+    wrongButtons.join('; '),
+  );
+  const buildLabel = await txt('label.label');
+  const buildOption = await page.evaluate(() => {
+    const sel = document
+      .querySelector('aj-lens-root')
+      .shadowRoot.querySelector('[data-testid="build-target"]');
+    return sel.querySelector('option[value="existing"]').text; // default option (migrated user has Next.js)
+  });
+  check(
+    'build target label and default option are Persian',
+    buildLabel === 'فناوری ساخت' && buildOption === 'پیروی از فناوری‌های موجود پروژه',
+    `${buildLabel} / ${buildOption}`,
+  );
+  check('include section is Persian', (await txt('.options summary')) === 'موارد موجود در پرامپت');
+  const footer = await txt('[data-testid="footer"]');
+  check(
+    'footer is Persian',
+    footer.includes('Esc: بستن') &&
+      footer.includes('کلیک: قفل‌کردن') &&
+      footer.includes('هیچ داده‌ای بارگذاری نمی‌شود'),
+  );
+  const clipped = await page.evaluate(() =>
+    Array.from(
+      document
+        .querySelector('aj-lens-root')
+        .shadowRoot.querySelectorAll('.btn, .seg button, .label, .status, .tagline'),
+    )
+      .filter((el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)
+      .map((el) => el.textContent.trim()),
+  );
+  check('no Persian label is clipped', clipped.length === 0, clipped.join(' | '));
   // Restore the default build target so prompt assertions below stay comparable.
   await page.locator('aj-lens-root select').selectOption('existing');
   check(
-    'panel isolated from page CSS',
-    (await panel.evaluate((el) => getComputedStyle(el).fontFamily)).includes('system-ui'),
+    'panel isolated from page CSS (Persian font stack)',
+    /Vazirmatn/.test(await panel.evaluate((el) => getComputedStyle(el).fontFamily)) &&
+      !/Georgia/.test(await panel.evaluate((el) => getComputedStyle(el).fontFamily)),
   );
   const box = await panel.boundingBox();
   check(
-    'panel docked top-right, ~340px wide',
-    box && box.x > 800 && box.width >= 330 && box.width <= 350,
+    'panel docked top-right, ~360px wide',
+    box && box.x > 800 && box.width >= 330 && box.width <= 365,
     box ? `${box.width}px at x=${box.x}` : 'no box',
   );
 
@@ -311,10 +410,29 @@ try {
   check('classified as pricing', /Type: \*\*pricing\*\*/.test(prompt));
 
   // One-click copy of the full detailed prompt, verified against the real clipboard.
-  await page.locator('aj-lens-root .seg button', { hasText: 'Detailed' }).click();
+  await page.locator('aj-lens-root [data-testid="mode-detailed"]').click();
   const detailedPrompt = await page.locator('aj-lens-root textarea.prompt').inputValue();
   const detailedCount = Number(
-    (await page.locator('aj-lens-root .count').textContent()).replace(/\D/g, ''),
+    await page.locator('aj-lens-root [data-testid="char-count"]').getAttribute('data-count'),
+  );
+  check(
+    'generated prompt is English in an LTR editor',
+    !/[\u0600-\u06FF]/.test(detailedPrompt) &&
+      (await sr('textarea.prompt').getAttribute('dir')) === 'ltr' &&
+      (await sr('textarea.prompt').getAttribute('lang')) === 'en',
+  );
+  const meta = await page.evaluate(() => {
+    const el = document
+      .querySelector('aj-lens-root')
+      .shadowRoot.querySelector('[data-testid="selection-meta"] bdi');
+    return { text: el.textContent, dir: getComputedStyle(el).direction };
+  });
+  check(
+    'selector and dimensions stay LTR',
+    /^[\d.]+ × [\d.]+ px$/.test(meta.text) &&
+      meta.dir === 'ltr' &&
+      (await sr('.selector').evaluate((e) => getComputedStyle(e).direction)) === 'ltr',
+    meta.text,
   );
   const copiedDetailed = await copyAndRead(page);
   check(
@@ -339,16 +457,31 @@ try {
   check(
     'success feedback shown on the button',
     (await page.locator('aj-lens-root [data-testid="copy-full-prompt"]').textContent()).includes(
-      'Full prompt copied',
+      'پرامپت کامل کپی شد',
     ),
   );
   check(
+    'Persian copy confirmation announced',
+    (await sr('[aria-live="polite"]').textContent()) === 'پرامپت کامل کپی شد',
+  );
+  const lockedLabel = await page.evaluate(() => {
+    const el = document.querySelector('aj-lens-root').shadowRoot.querySelector('.ajl-label');
+    return { text: el.textContent, dir: el.getAttribute('dir') };
+  });
+  check(
+    'page overlay label is Persian with LTR selector',
+    lockedLabel.text.startsWith('قفل‌شده · section#pricing · ') &&
+      lockedLabel.dir === 'rtl' &&
+      !/LOCKED/i.test(lockedLabel.text),
+    lockedLabel.text,
+  );
+  check(
     'status shows locked',
-    (await page.locator('aj-lens-root .status').textContent())?.includes('LOCKED'),
+    (await page.locator('aj-lens-root .status').textContent())?.includes('بخش قفل شده است'),
   );
   check(
     'lock button switched to Unlock',
-    (await page.locator('aj-lens-root .controls .wide').textContent()) === 'Unlock section',
+    (await page.locator('aj-lens-root .controls .wide').textContent()) === 'بازکردن قفل',
   );
   const preview = await page.locator('aj-lens-root .preview figcaption').textContent();
   check(
@@ -370,7 +503,7 @@ try {
   check('UI restored after capture', overlayVisibleAfterCapture === 'visible');
 
   // Compact toggle.
-  await page.locator('aj-lens-root .seg button', { hasText: 'Compact' }).click();
+  await page.locator('aj-lens-root [data-testid="mode-compact"]').click();
   const compact = await page.locator('aj-lens-root textarea.prompt').inputValue();
   check(
     'compact prompt within 2k–6k',
@@ -414,9 +547,9 @@ try {
   });
 
   // Exports.
-  await page.locator('aj-lens-root .actions .btn', { hasText: 'Save prompt.md' }).click();
-  await page.locator('aj-lens-root .actions .btn', { hasText: 'Save reference.png' }).click();
-  await page.locator('aj-lens-root .actions .btn', { hasText: 'Save analysis.json' }).click();
+  await page.locator('aj-lens-root [data-testid="save-prompt"]').click();
+  await page.locator('aj-lens-root [data-testid="save-reference"]').click();
+  await page.locator('aj-lens-root [data-testid="save-analysis"]').click();
   await page.waitForTimeout(300);
   const downloads = await page.evaluate(() => window.__ajlDownloads);
   check(
@@ -438,6 +571,17 @@ try {
       );
     }
     await page.screenshot({ path: join(process.env.SMOKE_ARTIFACTS, 'page-with-panel.png') });
+    // Full-height Persian panel for the documentation.
+    await page.setViewportSize({ width: 1280, height: 1500 });
+    await page.waitForTimeout(150);
+    await page.evaluate(() => {
+      document.querySelector('aj-lens-root').shadowRoot.querySelector('.body').scrollTop = 0;
+    });
+    await page
+      .locator('aj-lens-root .panel')
+      .screenshot({ path: join(process.env.SMOKE_ARTIFACTS, 'panel-fa.png') });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(150);
   }
   check('secrets absent from prompt', !compact.includes('hunter2') && !prompt.includes('hunter2'));
 
@@ -445,7 +589,7 @@ try {
   await page.locator('aj-lens-root .controls .wide').click();
   check(
     'unlock returns to hover mode',
-    (await page.locator('aj-lens-root .status').textContent())?.includes('INSPECTOR ACTIVE'),
+    (await page.locator('aj-lens-root .status').textContent())?.includes('بازرس فعال است'),
   );
   await page.keyboard.press('Escape');
   await page.waitForTimeout(100);
@@ -485,7 +629,13 @@ try {
     );
   check('partial-capture choice offered', partialChoice);
   if (partialChoice) {
-    await page.locator('aj-lens-root .choice .btn', { hasText: 'Capture visible area' }).click();
+    check(
+      'partial-capture dialog is Persian',
+      (await sr('[data-testid="capture-choice"]').textContent()).includes(
+        'بخشی از ناحیه انتخاب‌شده خارج از محدوده قابل مشاهده است.',
+      ) && (await txt('[data-testid="capture-visible"]')) === 'ثبت بخش قابل مشاهده',
+    );
+    await page.locator('aj-lens-root [data-testid="capture-visible"]').click();
     await page.waitForFunction(
       () =>
         (document.querySelector('aj-lens-root')?.shadowRoot?.querySelector('textarea.prompt')?.value
@@ -517,78 +667,35 @@ try {
       return clicked;
     }),
   );
-  // Persian interface: same flow on a page whose browser language is fa-IR.
-  const fa = await context.newPage();
-  fa.on('pageerror', (e) => errors.push(e.message));
-  await fa.exposeFunction('__ajlCapture', async () => {
-    const buf = await fa.screenshot({ type: 'png' });
-    return `data:image/png;base64,${buf.toString('base64')}`;
-  });
-  await fa.addInitScript(() => {
-    Object.defineProperty(navigator, 'language', { get: () => 'fa-IR' });
-    Object.defineProperty(navigator, 'languages', { get: () => ['fa-IR', 'fa'] });
-  });
-  await fa.addInitScript(stubRuntime);
-  await fa.addInitScript(spyClipboard);
-  await fa.goto(url);
-  await fa.addScriptTag({ content: readFileSync(resolve(dist, 'content.js'), 'utf8') });
-  await fa.evaluate(() => window.__ajLens.toggle());
-  await fa.locator('aj-lens-root .panel').waitFor();
-  await fa.evaluate(() =>
-    window.scrollTo(
-      0,
-      document.querySelector('#pricing').getBoundingClientRect().top + window.scrollY - 40,
-    ),
-  );
-  const faH = await fa.locator('#pricing > h2').boundingBox();
-  await fa.mouse.move(faH.x + 30, faH.y + faH.height / 2);
-  await fa.waitForTimeout(200);
-  await fa.mouse.move(faH.x + 32, faH.y + faH.height / 2);
-  await fa.waitForTimeout(200);
-  const faButton = fa.locator('aj-lens-root [data-testid="copy-full-prompt"]');
-  check(
-    'Persian button label before generation',
-    (await faButton.textContent()) === 'کپی کامل پرامپت' && (await faButton.isDisabled()),
-  );
-  await fa.keyboard.press('Enter');
-  if (
-    await fa
-      .locator('aj-lens-root .choice')
-      .waitFor({ timeout: 2000 })
-      .then(
-        () => true,
-        () => false,
-      )
-  ) {
-    await fa.locator('aj-lens-root .choice .btn.primary').click();
+  // Language selector: switch to English immediately, persist across close/reopen, switch back.
+  if ((await page.locator('aj-lens-root .panel').count()) === 0) {
+    await page.evaluate(() => window.__ajLens.toggle());
+    await page.locator('aj-lens-root .panel').waitFor();
   }
-  await fa.waitForFunction(
-    () => {
-      const b = document
-        .querySelector('aj-lens-root')
-        ?.shadowRoot?.querySelector('[data-testid="copy-full-prompt"]');
-      return b && !b.disabled;
-    },
-    null,
-    { timeout: 15000 },
-  );
-  const faPrompt = await fa.locator('aj-lens-root textarea.prompt').inputValue();
-  const faCopied = await copyAndRead(fa);
-  const faFeedback = await faButton.textContent();
-  const faLive = await fa.locator('aj-lens-root [aria-live="polite"]').textContent();
+  await page.locator('aj-lens-root [data-testid="locale-en"]').click();
+  const panelNow = page.locator('aj-lens-root .panel');
   check(
-    'Persian feedback "پرامپت کامل کپی شد" and full English prompt copied',
-    faFeedback.includes('پرامپت کامل کپی شد') &&
-      faLive === 'پرامپت کامل کپی شد' &&
-      faCopied.clip === faPrompt &&
-      faPrompt.startsWith('Reconstruct'),
-    `${faFeedback} / ${faCopied.clip?.length} chars`,
+    'switching to English updates the panel immediately',
+    (await panelNow.getAttribute('dir')) === 'ltr' &&
+      (await txt('[data-testid="copy-full-prompt"]')) === 'Copy full prompt',
   );
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.__ajLens.toggle());
+  await page.locator('aj-lens-root .panel').waitFor();
+  await page.waitForTimeout(200);
   check(
-    'Persian accessible name',
-    (await faButton.getAttribute('aria-label')) === 'کپی کامل پرامپت بازسازی در کلیپ‌بورد',
+    'English choice persists after closing and reopening',
+    (await page.locator('aj-lens-root .panel').getAttribute('lang')) === 'en' &&
+      (await txt('[data-testid="status"]')) === 'Inspector active',
   );
-  await fa.close();
+  await page.locator('aj-lens-root [data-testid="locale-fa"]').click();
+  check(
+    'switching back to فارسی restores RTL',
+    (await page.locator('aj-lens-root .panel').getAttribute('dir')) === 'rtl' &&
+      (await txt('[data-testid="status"]')) === 'بازرس فعال است',
+  );
+  await page.evaluate(() => window.__ajLens.toggle());
 
   check('no page errors', errors.length === 0, errors.join(' | '));
 } catch (err) {

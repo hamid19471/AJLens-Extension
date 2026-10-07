@@ -84,7 +84,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 340px;
+  width: 360px;
   max-height: calc(100vh - 16px);
   display: flex;
   flex-direction: column;
@@ -98,7 +98,7 @@
     0 8px 20px -6px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.03);
   font: 400 12.5px/1.45 var(--ajl-font);
-  text-align: left;
+  text-align: start;
   pointer-events: auto;
   outline: none;
   -webkit-font-smoothing: antialiased;
@@ -202,6 +202,7 @@
   color: var(--ajl-accent);
   font: 600 10.5px/1 var(--ajl-font);
   letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .status .dot,
@@ -728,4 +729,144 @@
   .prompt {
     border: 1px solid ButtonText;
   }
+}
+
+/* ------------------------------------------------------------------ localization (RTL / LTR) */
+
+/* Technical content: selectors, tag names, dimensions, filenames, URLs, raw errors. */
+.ltr,
+.sel-head,
+.selector,
+.tag {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.notice .detail {
+  display: block;
+  margin-top: 3px;
+  color: var(--ajl-text-muted);
+  font: 400 10.5px/1.4 var(--ajl-mono);
+  word-break: break-word;
+}
+
+.notice .detail .ltr {
+  display: inline-block;
+  text-align: left;
+}
+
+/* Generated prompts are English: the preview always reads left-to-right. */
+.prompt {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+
+.lang-row {
+  align-items: center;
+  margin: 0 0 10px;
+}
+
+.lang-row .label {
+  margin: 0;
+}
+
+.lang-seg {
+  width: 160px;
+  margin: 0;
+}
+
+.panel[dir='rtl'] {
+  font-family: Vazirmatn, 'Yekan Bakh', Tahoma, Arial, sans-serif;
+}
+
+.panel[dir='rtl'] .btn,
+.panel[dir='rtl'] .select,
+.panel[dir='rtl'] .custom,
+.panel[dir='rtl'] .seg button,
+.panel[dir='rtl'] .tagline,
+.panel[dir='rtl'] .status,
+.panel[dir='rtl'] .label,
+.panel[dir='rtl'] .options summary {
+  font-family: Vazirmatn, 'Yekan Bakh', Tahoma, Arial, sans-serif;
+}
+
+/* Overlay label: Persian state word in the Persian font, technical part monospace LTR. */
+.ajl-label[dir='rtl'] .ajl-label-state {
+  font-family: Vazirmatn, 'Yekan Bakh', Tahoma, Arial, sans-serif;
+}
+
+.ajl-label[dir='ltr'] .ajl-label-state {
+  text-transform: uppercase;
+}
+
+/* The counter mixes Persian digits and a Persian word: never use the monospace font. */
+.panel[dir='rtl'] .count {
+  font-family: Vazirmatn, 'Yekan Bakh', Tahoma, Arial, sans-serif;
+  font-size: 11px;
+}
+
+/* Persian labels are wider than English: keep three controls per row on one line. */
+.panel[dir='rtl'] .btn {
+  padding: 5px 6px;
+}
+
+/* Persian glyphs need more vertical room than the Latin line-heights above. */
+.panel[dir='rtl'] .status,
+.panel[dir='rtl'] .label,
+.panel[dir='rtl'] .tagline {
+  line-height: 1.6;
+}
+
+/* Persian letters must not be letter-spaced or case-transformed (it breaks joining). */
+.panel[dir='rtl'] .status,
+.panel[dir='rtl'] .label,
+.panel[dir='rtl'] .options summary,
+.panel[dir='rtl'] .tagline {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.panel[dir='rtl'] .label,
+.panel[dir='rtl'] .options summary {
+  font-size: 11px;
+}
+
+/* Sentence-level bidi so punctuation stays at the end of Persian lines. */
+.panel[dir='rtl'] .tagline,
+.panel[dir='rtl'] .desc,
+.panel[dir='rtl'] .meta,
+.panel[dir='rtl'] .notice > span,
+.panel[dir='rtl'] .choice p,
+.panel[dir='rtl'] .copy-status,
+.panel[dir='rtl'] .ftr span,
+.panel[dir='rtl'] .check span,
+.panel[dir='rtl'] .progress-text span {
+  direction: rtl;
+  unicode-bidi: plaintext;
+  text-align: right;
+}
+
+.panel[dir='rtl'] .copy-status {
+  text-align: center;
+}
+
+.panel[dir='rtl'] .sel-head {
+  justify-content: flex-end;
+}
+
+.panel[dir='rtl'] .select {
+  padding: 0 9px 0 28px;
+  background-position:
+    10px 13px,
+    14px 13px;
+}
+
+.panel[dir='rtl'] .prompt:placeholder-shown {
+  direction: rtl;
+  text-align: right;
+}
+
+.panel[dir='rtl'] .preview figcaption {
+  direction: ltr;
 }

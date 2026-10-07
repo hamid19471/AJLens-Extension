@@ -9,7 +9,14 @@ import { buildMarkdownExport } from '../src/core/prompt/export';
 import { DEFAULT_PREFERENCES } from '../src/shared/preferences';
 import { COPY_FEEDBACK_MS, InspectorController } from '../src/content/controller';
 import { Panel } from '../src/content/panel/Panel';
-import { COPY_STRINGS, detectLocale } from '../src/content/i18n';
+import { TRANSLATIONS, type Locale } from '../src/shared/i18n';
+
+const EN = TRANSLATIONS.en;
+const FA = TRANSLATIONS.fa;
+
+function setLocale(c: InspectorController, locale: Locale) {
+  c.store.set({ prefs: { ...c.store.get().prefs, locale } });
+}
 import type { ClipboardService } from '../src/content/clipboard';
 import { $, loadFixture, testMeasurer } from './helpers';
 
@@ -47,7 +54,12 @@ function fakeClipboard() {
 
 function readyController(clipboard: ClipboardService, prompt?: string) {
   const c = new InspectorController({ onClose: () => undefined, clipboard });
-  const prefs = { ...DEFAULT_PREFERENCES, include: { ...DEFAULT_PREFERENCES.include } };
+  // Copy tests run in English unless a test opts into Persian with setLocale().
+  const prefs = {
+    ...DEFAULT_PREFERENCES,
+    locale: 'en' as const,
+    include: { ...DEFAULT_PREFERENCES.include },
+  };
   c.store.set({
     mode: 'locked',
     stage: 'ready',
@@ -130,17 +142,17 @@ describe('controller.copyPrompt', () => {
       const c = readyController(fakeClipboard());
       await c.copyPrompt();
       expect(c.store.get().copyStatus).toBe('copied');
-      expect(c.store.get().announcement).toBe(COPY_STRINGS.en.copied);
+      expect(c.store.get().announcement).toBe(EN.fullPromptCopied);
       vi.advanceTimersByTime(COPY_FEEDBACK_MS);
       expect(c.store.get().copyStatus).toBe('idle');
 
       const failing = readyController({
         copyText: async () => Promise.reject(new Error('denied')),
       });
-      failing.store.set({ locale: 'fa' });
+      setLocale(failing, 'fa');
       await failing.copyPrompt();
       expect(failing.store.get().copyStatus).toBe('failed');
-      expect(failing.store.get().announcement).toBe(COPY_STRINGS.fa.copyFailed);
+      expect(failing.store.get().announcement).toBe(FA.copyFailed);
       vi.advanceTimersByTime(COPY_FEEDBACK_MS);
       expect(failing.store.get().copyStatus).toBe('idle');
     } finally {
@@ -154,16 +166,6 @@ describe('controller.copyPrompt', () => {
     const md = buildMarkdownExport(analysis, prompt);
     expect(md).toContain(prompt.trim());
     expect(md).toContain('reference_image: "reference.png"');
-  });
-});
-
-describe('locale detection', () => {
-  it('maps Persian browser languages to fa and everything else to en', () => {
-    expect(detectLocale('fa')).toBe('fa');
-    expect(detectLocale('fa-IR')).toBe('fa');
-    expect(detectLocale('en-US')).toBe('en');
-    expect(detectLocale('de')).toBe('en');
-    expect(detectLocale(undefined)).toBe('en');
   });
 });
 
@@ -194,7 +196,7 @@ describe('Copy full prompt button', () => {
     render(c);
     expect(button().disabled).toBe(true);
     expect(button().getAttribute('aria-busy')).toBe('true');
-    expect(status().textContent).toBe(COPY_STRINGS.en.preparing);
+    expect(status().textContent).toBe(EN.generatingPrompt);
   });
 
   it('becomes enabled when the full prompt is ready and copies it in one click', async () => {
@@ -213,7 +215,7 @@ describe('Copy full prompt button', () => {
     expect(button().disabled).toBe(false);
     expect(button().getAttribute('aria-busy')).toBe('false');
     expect(button().textContent).toBe('Copy full prompt');
-    expect(status().textContent).toBe(COPY_STRINGS.en.modeDetailed);
+    expect(status().textContent).toBe(EN.modeDetailed);
     await act(async () => button().click());
     expect(clip.copied).toEqual([full]);
     expect(button().textContent).toContain('Full prompt copied');
@@ -249,11 +251,11 @@ describe('Copy full prompt button', () => {
     const clip = fakeClipboard();
     const c = readyController(clip);
     render(c);
-    const compactRadio = Array.from(
-      container.querySelectorAll<HTMLButtonElement>('.seg button'),
-    ).find((b) => b.textContent === 'Compact')!;
+    const compactRadio = container.querySelector<HTMLButtonElement>(
+      '[data-testid="mode-compact"]',
+    )!;
     act(() => compactRadio.click());
-    expect(status().textContent).toBe(COPY_STRINGS.en.modeCompact);
+    expect(status().textContent).toBe(EN.modeCompact);
     await act(async () => button().click());
     expect(clip.copied[0]).toBe(c.store.get().prompt);
     expect(clip.copied[0].length).toBeLessThanOrEqual(6000);
@@ -295,12 +297,12 @@ describe('Copy full prompt button', () => {
   it('uses Persian labels, accessible name and confirmation in the fa locale', async () => {
     const clip = fakeClipboard();
     const c = readyController(clip);
-    c.store.set({ locale: 'fa' });
+    setLocale(c, 'fa');
     render(c);
     expect(button().textContent).toBe('کپی کامل پرامپت');
     expect(button().getAttribute('aria-label')).toBe('کپی کامل پرامپت بازسازی در کلیپ‌بورد');
-    expect(button().getAttribute('lang')).toBe('fa');
-    expect(button().getAttribute('dir')).toBe('rtl');
+    expect(button().closest('[lang]')?.getAttribute('lang')).toBe('fa');
+    expect(button().closest('[dir]')?.getAttribute('dir')).toBe('rtl');
     await act(async () => button().click());
     expect(button().textContent).toContain('پرامپت کامل کپی شد');
     expect(container.querySelector('[aria-live="polite"]')!.textContent).toBe('پرامپت کامل کپی شد');

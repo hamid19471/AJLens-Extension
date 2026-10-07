@@ -1,7 +1,7 @@
 import type { AnalysisStage, SectionAnalysis } from '../shared/types';
 import type { Preferences } from '../shared/preferences';
 import { DEFAULT_PREFERENCES } from '../shared/preferences';
-import type { UiLocale } from './i18n';
+import type { MessageKey } from '../shared/i18n';
 
 export interface CandidateInfo {
   tag: string;
@@ -15,9 +15,13 @@ export interface CandidateInfo {
   accessibleName?: string;
 }
 
+/** Localized at render time so switching language re-translates visible messages. */
 export interface Notice {
   kind: 'info' | 'warning' | 'error';
-  text: string;
+  key: MessageKey;
+  params?: Record<string, string | number>;
+  /** Raw technical detail (browser error text) — shown LTR and untranslated. */
+  detail?: string;
 }
 
 export interface ReferenceImage {
@@ -41,7 +45,6 @@ export interface InspectorState {
   announcement: string;
   /** Result of the last "Copy full prompt" click; resets to idle after a short delay. */
   copyStatus: 'idle' | 'copied' | 'failed';
-  locale: UiLocale;
 }
 
 export const INITIAL_STATE: InspectorState = {
@@ -56,7 +59,6 @@ export const INITIAL_STATE: InspectorState = {
   prefs: DEFAULT_PREFERENCES,
   announcement: '',
   copyStatus: 'idle',
-  locale: 'en',
 };
 
 export class Store<T extends object> {

@@ -1,0 +1,10 @@
+{
+  "extDescription": {
+    "message": "Point. Capture. Rebuild. Select any website section and generate a reconstruction prompt for coding agents — measured locally.",
+    "description": "Extension description shown in chrome://extensions and the Web Store."
+  },
+  "commandToggle": {
+    "message": "Toggle the AJ Lens inspector",
+    "description": "Keyboard shortcut description in chrome://extensions/shortcuts."
+  }
+}

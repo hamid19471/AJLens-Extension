@@ -1,7 +1,7 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { createElement } from 'react';
 import type { AnalysisStage, ReferenceInfo, Rect } from '../shared/types';
-import { STAGE_LABELS } from '../shared/types';
+import { STAGE_MESSAGE_KEYS, type SectionAnalysis } from '../shared/types';
 import type { PanelPosition, Preferences } from '../shared/preferences';
 import { loadPreferences, savePreferences } from '../shared/preferences';
 import { createDomMeasurer } from '../core/measure';
@@ -33,11 +33,11 @@ import {
   type InspectorState,
   type Notice,
 } from './store';
-import { Overlay } from './overlay';
+import { Overlay, overlayLabel } from './overlay';
 import { blobToDataUrl, captureElement, nextFrames } from './capture';
 import { requestDownload, runtimeAvailable } from './runtime';
 import { createClipboardService, type ClipboardService } from './clipboard';
-import { COPY_STRINGS, browserLanguage, detectLocale } from './i18n';
+import { format, formatNumber, messages, type MessageKey } from '../shared/i18n';
 import { Panel } from './panel/Panel';
 import panelCss from './panel/panel.css?inline';
 
@@ -130,7 +130,15 @@ export class InspectorController {
 
   constructor(private readonly opts: ControllerOptions) {
     this.clipboard = opts.clipboard ?? createClipboardService({ container: () => this.shadow });
-    this.store.set({ locale: detectLocale(browserLanguage()) });
+  }
+
+  /** Interface messages for the user's chosen locale (Persian by default). */
+  private get t() {
+    return messages(this.store.get().prefs.locale);
+  }
+
+  private say(key: MessageKey, vars: Record<string, string | number> = {}): void {
+    this.announce(format(this.t[key], vars));
   }
 
   // ---------------------------------------------------------------- lifecycle
@@ -158,15 +166,14 @@ export class InspectorController {
     this.bindEvents();
     this.resizeObs = new ResizeObserver(() => this.schedule());
     this.pollTimer = window.setInterval(() => this.schedule(), 300);
-    this.store.set({ announcement: 'AJ Lens inspector active. Hover over a section.' });
+    this.say('announceActive');
     if (!runtimeAvailable()) {
-      this.setNotice({
-        kind: 'warning',
-        text: 'Extension runtime unavailable — screenshots and downloads may not work. Reload the page if AJ Lens was updated.',
-      });
+      this.setNotice({ kind: 'warning', key: 'runtimeUnavailable' });
     }
     void loadPreferences().then((prefs) => {
-      if (!this.destroyed) this.store.set({ prefs });
+      if (this.destroyed) return;
+      this.store.set({ prefs });
+      this.say('announceActive');
     });
   }
 
@@ -362,11 +369,11 @@ export class InspectorController {
     }
     const rect = this.m.rect(target);
     const state = this.store.get();
-    const label = `${conciseSelector(target)} · ${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+    const locked = state.mode === 'locked';
     overlay.show(
       rect,
-      state.mode === 'locked' ? `LOCKED · ${label}` : label,
-      state.mode === 'locked',
+      overlayLabel(conciseSelector(target), rect.width, rect.height, locked, state.prefs.locale),
+      locked,
     );
     const c = state.candidate;
     if (c && (c.width !== round(rect.width) || c.height !== round(rect.height))) {
@@ -386,12 +393,9 @@ export class InspectorController {
       prompt: '',
       reference: null,
       captureChoice: null,
-      notice: {
-        kind: 'error',
-        text: 'The selected element was removed from the page (the site re-rendered it). Hover and select it again.',
-      },
-      announcement: 'Selected element was removed from the page.',
+      notice: { kind: 'error', key: 'elementRemoved' },
     });
+    this.say('elementRemoved');
   }
 
   // ---------------------------------------------------------------- selection
@@ -435,10 +439,7 @@ export class InspectorController {
     const patch: Partial<InspectorState> = { candidate: this.candidateInfo(el) };
     const notice = this.store.get().notice;
     if (crossOriginFrame(el)) {
-      patch.notice = {
-        kind: 'warning',
-        text: 'Cross-origin iframe: its contents belong to another site and cannot be inspected. You can still capture its outer box.',
-      };
+      patch.notice = { kind: 'warning', key: 'crossOriginIframe' };
     } else if (notice && notice.kind !== 'error') {
       patch.notice = null;
     }
@@ -449,7 +450,7 @@ export class InspectorController {
   navigate(direction: 'up' | 'down'): void {
     const current = this.target;
     if (!current) {
-      this.announce('Hover over a section first.');
+      this.say('announceHoverFirst');
       return;
     }
     this.m.reset();
@@ -458,37 +459,27 @@ export class InspectorController {
         ? selectParent(current, this.m)
         : selectChild(current, this.m, this.pointer);
     if (!next) {
-      this.setNotice({
-        kind: 'info',
-        text:
-          direction === 'up'
-            ? 'No larger meaningful parent — this is the outermost region.'
-            : 'No smaller meaningful child inside this section.',
-      });
-      this.announce(direction === 'up' ? 'No meaningful parent.' : 'No meaningful child.');
+      const key = direction === 'up' ? 'noParent' : 'noChild';
+      this.setNotice({ kind: 'info', key });
+      this.say(key);
       return;
     }
     this.stable.set(next);
     this.manualAnchor = this.pointer ?? { x: -100, y: -100 };
     this.setTarget(next);
-    this.announce(`Selected ${conciseSelector(next)}.`);
+    this.say('announceSelected', { selector: conciseSelector(next) });
     if (this.store.get().mode === 'locked') void this.runAnalysis();
   }
 
   async lock(): Promise<void> {
     if (!this.target) {
-      this.setNotice({
-        kind: 'info',
-        text: 'No meaningful section under the pointer. Move over a visible region and try again.',
-      });
+      this.setNotice({ kind: 'info', key: 'noCandidate' });
+      this.say('noCandidate');
       return;
     }
     this.stable.set(this.target);
-    this.store.set({
-      mode: 'locked',
-      notice: null,
-      announcement: `Locked ${conciseSelector(this.target)}.`,
-    });
+    this.store.set({ mode: 'locked', notice: null });
+    this.say('announceLocked', { selector: conciseSelector(this.target) });
     this.schedule();
     await this.runAnalysis();
   }
@@ -505,8 +496,8 @@ export class InspectorController {
       captureChoice: null,
       copyStatus: 'idle',
       notice: null,
-      announcement: 'Selection unlocked. Hover over a section.',
     });
+    this.say('announceUnlocked');
     if (this.target) this.setTarget(this.target);
     this.schedule();
   }
@@ -521,7 +512,7 @@ export class InspectorController {
     this.stable.set(null);
     this.setTarget(null);
     this.pointerDirty = true;
-    this.announce('Pick another section: hover and click to lock.');
+    this.say('announcePickAnother');
   }
 
   refresh(): void {
@@ -529,7 +520,7 @@ export class InspectorController {
     this.infoCache = new WeakMap();
     if (this.target) this.setTarget(this.target);
     if (this.store.get().mode === 'locked') void this.runAnalysis();
-    else this.announce('Measurement refreshed.');
+    else this.say('announceRefreshed');
   }
 
   // ---------------------------------------------------------------- analysis
@@ -559,29 +550,36 @@ export class InspectorController {
         measurer: createDomMeasurer(),
         signal: ac.signal,
         onStage: (stage: AnalysisStage) => {
-          if (!ac.signal.aborted) this.store.set({ stage, announcement: STAGE_LABELS[stage] });
+          if (ac.signal.aborted) return;
+          this.store.set({ stage });
+          this.say(STAGE_MESSAGE_KEYS[stage]);
         },
         capture: () => this.captureFor(el, ac.signal),
       });
       if (ac.signal.aborted || this.destroyed) return;
       const prompt = generatePrompt(analysis, this.promptOptions(this.store.get().prefs));
       const c = this.store.get().candidate;
-      const warning = analysis.warnings[0];
       this.store.set({
         analysis,
         prompt,
         stage: 'ready',
         candidate: c ? { ...c, assets: analysis.assets.length, assetsMeasured: true } : c,
-        notice: warning ? { kind: 'warning', text: warning } : null,
-        announcement: `Ready. Prompt generated with ${prompt.length.toLocaleString()} characters.`,
+        notice: noticeForAnalysis(analysis),
+      });
+      this.say('announceReady', {
+        count: formatNumber(prompt.length, this.store.get().prefs.locale),
       });
     } catch (err) {
       if (err instanceof AnalysisAbortedError || ac.signal.aborted || this.destroyed) return;
+      const message = err instanceof Error ? err.message : '';
+      const removed = /removed from the page/i.test(message);
       this.store.set({
         stage: null,
-        notice: { kind: 'error', text: err instanceof Error ? err.message : 'Analysis failed.' },
-        announcement: 'Analysis failed.',
+        notice: removed
+          ? { kind: 'error', key: 'elementRemoved' }
+          : { kind: 'error', key: 'analysisFailed', detail: message || undefined },
       });
+      this.say(removed ? 'elementRemoved' : 'analysisFailed');
     }
   }
 
@@ -639,7 +637,9 @@ export class InspectorController {
   private askCaptureChoice(visiblePercent: number): Promise<CaptureChoice> {
     this.store.set({
       captureChoice: { visiblePercent },
-      announcement: `Only ${visiblePercent}% of the section is visible. Choose how to capture the reference.`,
+      announcement: format(this.t.announcePartial, {
+        percent: formatNumber(visiblePercent, this.store.get().prefs.locale),
+      }),
     });
     return new Promise((resolve) => {
       this.choiceResolver = (c) => {
@@ -682,8 +682,11 @@ export class InspectorController {
     window.clearTimeout(this.saveTimer);
     this.saveTimer = window.setTimeout(() => {
       this.saveTimer = undefined;
-      void savePreferences(this.store.get().prefs);
+      void savePreferences(this.store.get().prefs).then((ok) => {
+        if (!ok && !this.destroyed) this.setNotice({ kind: 'warning', key: 'storageFailed' });
+      });
     }, 300);
+    if ('locale' in patch) this.say('announceLanguage');
   }
 
   setPanelPosition(pos: PanelPosition): void {
@@ -703,7 +706,6 @@ export class InspectorController {
   async copyPrompt(): Promise<void> {
     if (!this.promptReady()) return;
     const fullPrompt = this.store.get().prompt;
-    const strings = COPY_STRINGS[this.store.get().locale];
     window.clearTimeout(this.copiedTimer);
     let ok: boolean;
     try {
@@ -714,7 +716,7 @@ export class InspectorController {
     }
     if (this.destroyed) return;
     this.store.set({ copyStatus: ok ? 'copied' : 'failed' });
-    this.announce(ok ? strings.copied : strings.copyFailed);
+    this.say(ok ? 'fullPromptCopied' : 'copyFailed');
     this.copiedTimer = window.setTimeout(() => {
       if (!this.destroyed) this.store.set({ copyStatus: 'idle' });
     }, COPY_FEEDBACK_MS);
@@ -726,7 +728,7 @@ export class InspectorController {
     const path = `${exportFolder(analysis)}/${name}`;
     const res = await requestDownload(path, dataUrl);
     if (res.ok) {
-      this.announce(`Saved ${name} to Downloads/${exportFolder(analysis)}.`);
+      this.say('announceSaved', { file: name });
       return;
     }
     // Fallback: anchor download from the page (works when the service worker is unavailable).
@@ -738,9 +740,9 @@ export class InspectorController {
       this.shadow?.append(a);
       a.click();
       a.remove();
-      this.announce(`Saved ${name}.`);
+      this.say('announceSaved', { file: name });
     } catch {
-      this.setNotice({ kind: 'error', text: `Download failed: ${res.error}` });
+      this.setNotice({ kind: 'error', key: 'downloadFailed', detail: res.error });
     }
   }
 
@@ -767,7 +769,8 @@ export class InspectorController {
     } catch (err) {
       this.setNotice({
         kind: 'error',
-        text: `Download failed: ${err instanceof Error ? err.message : String(err)}`,
+        key: 'downloadFailed',
+        detail: err instanceof Error ? err.message : String(err),
       });
     }
   }
@@ -787,4 +790,20 @@ export class InspectorController {
     const prev = this.store.get().announcement;
     this.store.set({ announcement: prev === text ? `${text}\u200b` : text });
   }
+}
+
+/** Picks the most important analysis warning as a localized notice (raw detail stays English). */
+export function noticeForAnalysis(a: SectionAnalysis): Notice | null {
+  if (a.reference.status === 'failed') {
+    return { kind: 'warning', key: 'captureFailed', detail: a.reference.note };
+  }
+  if (a.structure.truncated) return { kind: 'warning', key: 'oversizedSelection' };
+  if (a.warnings.some((w) => /cross-origin iframe/i.test(w))) {
+    return { kind: 'warning', key: 'crossOriginIframe' };
+  }
+  if (a.reference.status === 'partial') return { kind: 'warning', key: 'partialReference' };
+  const sheets = a.responsive.discovered.inaccessibleStylesheets;
+  if (sheets > 0)
+    return { kind: 'info', key: 'inaccessibleStylesheets', params: { count: sheets } };
+  return null;
 }

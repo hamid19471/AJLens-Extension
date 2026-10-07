@@ -1,3 +1,5 @@
+import type { MessageKey } from './i18n';
+
 /**
  * Versioned schema for section-analysis.json and the in-memory analysis model.
  * Every field is plain JSON so it can be exported verbatim.
@@ -425,17 +427,18 @@ export type AnalysisStage =
   | 'prompt'
   | 'ready';
 
-export const STAGE_LABELS: Record<AnalysisStage, string> = {
-  measuring: 'Measuring selected section…',
-  layout: 'Analyzing layout…',
-  typography: 'Collecting typography…',
-  assets: 'Detecting assets…',
-  responsive: 'Inspecting responsive rules…',
-  capturing: 'Capturing visible reference…',
-  classifying: 'Classifying section…',
-  prompt: 'Generating reconstruction prompt…',
-  ready: 'Ready',
-};
+/** Dictionary keys for progress messages (see shared/i18n.ts). */
+export const STAGE_MESSAGE_KEYS = {
+  measuring: 'stageMeasuring',
+  layout: 'stageLayout',
+  typography: 'stageTypography',
+  assets: 'stageAssets',
+  responsive: 'stageResponsive',
+  capturing: 'stageCapturing',
+  classifying: 'stageClassifying',
+  prompt: 'stagePrompt',
+  ready: 'stageReady',
+} as const satisfies Record<AnalysisStage, MessageKey>;
 
 export const STAGE_ORDER: AnalysisStage[] = [
   'measuring',

@@ -6,12 +6,27 @@ import type {
 } from '../shared/messages';
 import { isBackgroundRequest } from '../shared/messages';
 import { restrictionReason } from './restricted';
+import { loadLocale } from '../shared/preferences';
+import { messages, type MessageKey } from '../shared/i18n';
 
 const CONTENT_SCRIPT = 'content.js';
 const NOTICE_PAGE = 'notice.html';
 
-async function showNotice(tabId: number | undefined, reason: string): Promise<void> {
-  const popup = `${NOTICE_PAGE}?reason=${encodeURIComponent(reason)}`;
+/** Interface strings in the user's saved locale (Persian unless English was chosen). */
+async function t() {
+  return messages(await loadLocale());
+}
+
+async function showNotice(
+  tabId: number | undefined,
+  key: MessageKey,
+  detail?: string,
+): Promise<void> {
+  const locale = await loadLocale();
+  const params = new URLSearchParams({ key, lang: locale });
+  if (detail) params.set('detail', detail.slice(0, 300));
+  const popup = `${NOTICE_PAGE}?${params.toString()}`;
+  const reason = messages(locale)[key];
   try {
     if (tabId !== undefined) await chrome.action.setPopup({ tabId, popup });
     await chrome.action.openPopup();
@@ -29,10 +44,8 @@ async function setActiveBadge(tabId: number, active: boolean): Promise<void> {
   try {
     await chrome.action.setBadgeBackgroundColor({ tabId, color: '#718f50' });
     await chrome.action.setBadgeText({ tabId, text: active ? 'ON' : '' });
-    await chrome.action.setTitle({
-      tabId,
-      title: active ? 'AJ Lens — inspector active' : 'AJ Lens',
-    });
+    const m = await t();
+    await chrome.action.setTitle({ tabId, title: active ? m.titleActive : m.titleIdle });
   } catch {
     // Tab may have closed.
   }
@@ -65,20 +78,19 @@ async function toggleInspector(tab: chrome.tabs.Tab): Promise<void> {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const friendly = /cannot be scripted|cannot access|chrome-extension|webstore|gallery/i.test(
-        message,
-      )
-        ? 'Chrome does not allow extensions to run on this page.'
-        : /file:/i.test(tab.url ?? '')
-          ? 'Enable "Allow access to file URLs" for AJ Lens in chrome://extensions to inspect local files.'
-          : `AJ Lens could not be injected: ${message}`;
-      await showNotice(tabId, friendly);
+      if (/cannot be scripted|cannot access|chrome-extension|webstore|gallery/i.test(message)) {
+        await showNotice(tabId, 'restrictedBrowser', message);
+      } else if (/^file:/i.test(tab.url ?? '')) {
+        await showNotice(tabId, 'injectFileAccess', message);
+      } else {
+        await showNotice(tabId, 'injectFailed', message);
+      }
       return;
     }
     res = await sendToggle(tabId);
   }
   if (res) await setActiveBadge(tabId, res.active);
-  else await showNotice(tabId, 'The page did not respond. Reload the tab and try again.');
+  else await showNotice(tabId, 'noResponse');
 }
 
 chrome.action.onClicked.addListener((tab) => {

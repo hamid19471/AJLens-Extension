@@ -120,18 +120,22 @@ describe('storage defaults', () => {
       set: async () => Promise.reject(new Error('x')),
     };
     expect(await loadPreferences(broken)).toEqual(DEFAULT_PREFERENCES);
-    await expect(savePreferences(DEFAULT_PREFERENCES, broken)).resolves.toBeUndefined();
+    await expect(savePreferences(DEFAULT_PREFERENCES, broken)).resolves.toBe(false);
     expect(await loadPreferences(null)).toEqual(DEFAULT_PREFERENCES);
   });
 });
 
 describe('restricted pages', () => {
   it('explains pages Chrome does not allow', () => {
-    expect(restrictionReason('chrome://extensions')).toMatch(/Browser pages/);
-    expect(restrictionReason('edge://settings')).toMatch(/Browser pages/);
-    expect(restrictionReason('chrome-extension://abc/page.html')).toMatch(/Extension pages/);
-    expect(restrictionReason('https://chromewebstore.google.com/detail/x')).toMatch(/Web Store/);
-    expect(restrictionReason('https://chrome.google.com/webstore/category')).toMatch(/Web Store/);
+    expect(restrictionReason('chrome://extensions')).toBe('restrictedBrowser');
+    expect(restrictionReason('edge://settings')).toBe('restrictedBrowser');
+    expect(restrictionReason('chrome-extension://abc/page.html')).toBe('restrictedExtension');
+    expect(restrictionReason('https://chromewebstore.google.com/detail/x')).toBe(
+      'restrictedBrowser',
+    );
+    expect(restrictionReason('https://chrome.google.com/webstore/category')).toBe(
+      'restrictedBrowser',
+    );
   });
 
   it('allows normal pages', () => {

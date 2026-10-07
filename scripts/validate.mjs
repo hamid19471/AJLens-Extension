@@ -60,6 +60,31 @@ const html = readFileSync(resolve(dist, 'notice.html'), 'utf8');
 if (/<script(?![^>]*\bsrc=)[^>]*>/.test(html))
   fail('notice.html contains an inline script (blocked by MV3 CSP)');
 
+// Manifest localization: default locale present, every __MSG_key__ defined in every locale.
+const localesDir = resolve(dist, '_locales');
+const msgKeys = [...JSON.stringify(manifest).matchAll(/__MSG_(\w+)__/g)].map((m) => m[1]);
+if (msgKeys.length && !manifest.default_locale) fail('__MSG_ placeholders require default_locale');
+if (
+  manifest.default_locale &&
+  !existsSync(resolve(localesDir, manifest.default_locale, 'messages.json'))
+) {
+  fail(
+    `default_locale "${manifest.default_locale}" has no _locales/${manifest.default_locale}/messages.json`,
+  );
+}
+for (const locale of ['fa', 'en']) {
+  const file = resolve(localesDir, locale, 'messages.json');
+  if (!existsSync(file)) {
+    fail(`missing _locales/${locale}/messages.json`);
+    continue;
+  }
+  const msgs = JSON.parse(readFileSync(file, 'utf8'));
+  for (const key of msgKeys)
+    if (!msgs[key]?.message) fail(`_locales/${locale} is missing "${key}"`);
+}
+if (manifest.name !== 'AJ Lens' || manifest.short_name !== 'AJ Lens')
+  fail('name and short_name must be "AJ Lens"');
+
 if (errors.length) {
   console.error('Validation failed:\n' + errors.map((e) => `  ✗ ${e}`).join('\n'));
   process.exit(1);

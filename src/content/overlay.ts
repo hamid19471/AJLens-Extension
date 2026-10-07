@@ -1,4 +1,28 @@
 import type { Rect } from '../shared/types';
+import { dirFor, messages, type Locale } from '../shared/i18n';
+
+export interface OverlayLabel {
+  /** Localized state word (e.g. "قفل‌شده"), absent while hovering. */
+  prefix?: string;
+  /** Selector and dimensions — always rendered LTR. */
+  technical: string;
+  locale: Locale;
+}
+
+/** Builds the highlight label: localized state + LTR-isolated selector and size. */
+export function overlayLabel(
+  selector: string,
+  width: number,
+  height: number,
+  locked: boolean,
+  locale: Locale,
+): OverlayLabel {
+  return {
+    prefix: locked ? messages(locale).overlayLocked : undefined,
+    technical: `${selector} · ${Math.round(width)} × ${Math.round(height)}`,
+    locale,
+  };
+}
 
 /**
  * Fixed-position highlight drawn inside the extension's shadow root. It never touches
@@ -24,8 +48,8 @@ export class Overlay {
     this.hide();
   }
 
-  show(rect: Rect, text: string, locked: boolean): void {
-    const key = `${rect.x}|${rect.y}|${rect.width}|${rect.height}|${text}|${locked}`;
+  show(rect: Rect, text: OverlayLabel, locked: boolean): void {
+    const key = `${rect.x}|${rect.y}|${rect.width}|${rect.height}|${text.prefix}|${text.technical}|${text.locale}|${locked}`;
     if (key === this.last) return;
     this.last = key;
     this.root.style.display = 'block';
@@ -35,7 +59,20 @@ export class Overlay {
     b.height = `${Math.max(0, rect.height)}px`;
     this.box.classList.toggle('ajl-locked', locked);
     this.label.classList.toggle('ajl-locked', locked);
-    this.label.textContent = text;
+    const doc = this.label.ownerDocument;
+    this.label.lang = text.locale;
+    this.label.dir = dirFor(text.locale);
+    this.label.replaceChildren();
+    if (text.prefix) {
+      const state = doc.createElement('span');
+      state.className = 'ajl-label-state';
+      state.textContent = text.prefix;
+      this.label.append(state, doc.createTextNode(' · '));
+    }
+    const tech = doc.createElement('bdi');
+    tech.dir = 'ltr';
+    tech.textContent = text.technical;
+    this.label.append(tech);
     // Place the label above the box, or inside it when the box touches the top edge.
     const above = rect.y >= 22;
     const lx = Math.max(0, Math.min(rect.x, window.innerWidth - 220));

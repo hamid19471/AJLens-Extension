@@ -1,4 +1,5 @@
 /** User preferences — the only data AJ Lens persists. */
+import { DEFAULT_LOCALE, isLocale, type Locale, type MessageKey } from './i18n';
 
 export type BuildTarget =
   | 'existing'
@@ -38,16 +39,17 @@ export interface IncludeOptions {
   customProperties: boolean;
 }
 
-export const INCLUDE_LABELS: Record<keyof IncludeOptions, string> = {
-  visibleText: 'Visible text',
-  assetUrls: 'Asset URLs',
-  domSummary: 'DOM summary',
-  cssEvidence: 'CSS evidence',
-  accessibility: 'Accessibility',
-  interactions: 'Interactions',
-  responsive: 'Responsive evidence',
-  customProperties: 'CSS custom properties',
-};
+/** Dictionary keys for the include/exclude checkboxes (see shared/i18n.ts). */
+export const INCLUDE_MESSAGE_KEYS = {
+  visibleText: 'includeVisibleText',
+  assetUrls: 'includeAssetUrls',
+  domSummary: 'includeDomSummary',
+  cssEvidence: 'includeCssEvidence',
+  accessibility: 'includeAccessibility',
+  interactions: 'includeInteractions',
+  responsive: 'includeResponsive',
+  customProperties: 'includeCustomProperties',
+} as const satisfies Record<keyof IncludeOptions, MessageKey>;
 
 export interface PanelPosition {
   x: number;
@@ -62,6 +64,8 @@ export interface Preferences {
   customInstructions: string;
   promptDetail: PromptDetail;
   include: IncludeOptions;
+  /** Interface language. Persian unless the user explicitly picks English. */
+  locale: Locale;
 }
 
 export const DEFAULT_INCLUDE: IncludeOptions = {
@@ -83,6 +87,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   customInstructions: '',
   promptDetail: 'detailed',
   include: DEFAULT_INCLUDE,
+  locale: DEFAULT_LOCALE,
 };
 
 export const STORAGE_KEY = 'aj-lens.preferences';
@@ -119,6 +124,7 @@ export function normalizePreferences(raw: unknown): Preferences {
   if (raw.promptDetail === 'detailed' || raw.promptDetail === 'compact') {
     prefs.promptDetail = raw.promptDetail;
   }
+  if (isLocale(raw.locale)) prefs.locale = raw.locale;
   if (isRecord(raw.include)) {
     for (const key of Object.keys(DEFAULT_INCLUDE) as (keyof IncludeOptions)[]) {
       const v = raw.include[key];
@@ -167,6 +173,25 @@ export async function migratePreferences(
   }
 }
 
+/**
+ * Idempotent: stores the default Persian locale for installs that have no saved locale yet.
+ * Never infers English from the browser, and preserves every other stored field as-is.
+ */
+export async function migrateLocale(area: StorageArea | null = defaultArea()): Promise<boolean> {
+  if (!area) return false;
+  try {
+    const stored = (await area.get(STORAGE_KEY))[STORAGE_KEY];
+    if (isRecord(stored) && isLocale(stored.locale)) return false;
+    const next = isRecord(stored)
+      ? { ...stored, locale: DEFAULT_LOCALE }
+      : normalizePreferences(null);
+    await area.set({ [STORAGE_KEY]: next });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function defaultArea(): StorageArea | null {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) return null;
   return chrome.storage.local as unknown as StorageArea;
@@ -177,6 +202,7 @@ export async function loadPreferences(
 ): Promise<Preferences> {
   if (!area) return normalizePreferences(null);
   await migratePreferences(area);
+  await migrateLocale(area);
   try {
     const stored = await area.get(STORAGE_KEY);
     return normalizePreferences(stored[STORAGE_KEY]);
@@ -188,11 +214,24 @@ export async function loadPreferences(
 export async function savePreferences(
   prefs: Preferences,
   area: StorageArea | null = defaultArea(),
-): Promise<void> {
-  if (!area) return;
+): Promise<boolean> {
+  if (!area) return true;
   try {
     await area.set({ [STORAGE_KEY]: normalizePreferences(prefs) });
+    return true;
   } catch {
-    // Storage quota or context invalidation — preferences are best-effort.
+    // Storage quota or context invalidation — the caller shows a localized notice.
+    return false;
+  }
+}
+
+/** Reads only the saved interface locale (used by the service worker). */
+export async function loadLocale(area: StorageArea | null = defaultArea()): Promise<Locale> {
+  if (!area) return DEFAULT_LOCALE;
+  try {
+    const stored = (await area.get(STORAGE_KEY))[STORAGE_KEY];
+    return isRecord(stored) && isLocale(stored.locale) ? stored.locale : DEFAULT_LOCALE;
+  } catch {
+    return DEFAULT_LOCALE;
   }
 }

@@ -1,0 +1,10 @@
+{
+  "extDescription": {
+    "message": "انتخاب کنید، ثبت کنید، بازسازی کنید. هر بخش از یک وب‌سایت را انتخاب کنید و پرامپت بازسازی آن را برای عامل‌های برنامه‌نویسی بسازید؛ همه‌چیز به‌صورت محلی اندازه‌گیری می‌شود.",
+    "description": "Extension description shown in chrome://extensions and the Web Store."
+  },
+  "commandToggle": {
+    "message": "فعال یا غیرفعال‌کردن بازرس AJ Lens",
+    "description": "Keyboard shortcut description in chrome://extensions/shortcuts."
+  }
+}
