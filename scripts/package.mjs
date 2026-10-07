@@ -1,4 +1,4 @@
-// Zips dist/ into release/section-lens-<version>.zip (store-ready: manifest at the archive root).
+// Zips dist/ into release/aj-lens-<version>.zip (store-ready: manifest at the archive root).
 import { readdirSync, readFileSync, statSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { deflateRawSync, crc32 } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
@@ -68,7 +68,7 @@ end.writeUInt32LE(centralBuf.length, 12);
 end.writeUInt32LE(offset, 16);
 
 mkdirSync(resolve(root, 'release'), { recursive: true });
-const zipPath = resolve(root, 'release', `section-lens-${version}.zip`);
+const zipPath = resolve(root, 'release', `aj-lens-${version}.zip`);
 writeFileSync(zipPath, Buffer.concat([...locals, centralBuf, end]));
 console.log(
   `✓ Packaged ${centrals.length / 2} files → ${relative(root, zipPath)} (${(statSync(zipPath).size / 1024).toFixed(1)} KB)`,

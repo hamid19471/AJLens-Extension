@@ -1,4 +1,4 @@
-// Renders the Section Lens icon (rounded-square focus frame + lens dot) to PNG at 16/32/48/128px.
+// Renders the AJ Lens icon (rounded-square focus frame + lens dot) to PNG at 16/32/48/128px.
 // Pure Node: signed-distance rendering with 4×4 supersampling, encoded with zlib.
 import { deflateSync, crc32 } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';

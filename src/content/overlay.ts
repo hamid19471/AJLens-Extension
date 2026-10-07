@@ -13,12 +13,12 @@ export class Overlay {
   constructor(parent: ShadowRoot) {
     const doc = parent.ownerDocument ?? document;
     this.root = doc.createElement('div');
-    this.root.className = 'sl-overlay';
+    this.root.className = 'ajl-overlay';
     this.root.setAttribute('aria-hidden', 'true');
     this.box = doc.createElement('div');
-    this.box.className = 'sl-box';
+    this.box.className = 'ajl-box';
     this.label = doc.createElement('div');
-    this.label.className = 'sl-label';
+    this.label.className = 'ajl-label';
     this.root.append(this.box, this.label);
     parent.append(this.root);
     this.hide();
@@ -33,8 +33,8 @@ export class Overlay {
     b.transform = `translate(${rect.x}px, ${rect.y}px)`;
     b.width = `${Math.max(0, rect.width)}px`;
     b.height = `${Math.max(0, rect.height)}px`;
-    this.box.classList.toggle('sl-locked', locked);
-    this.label.classList.toggle('sl-locked', locked);
+    this.box.classList.toggle('ajl-locked', locked);
+    this.label.classList.toggle('ajl-locked', locked);
     this.label.textContent = text;
     // Place the label above the box, or inside it when the box touches the top edge.
     const above = rect.y >= 22;

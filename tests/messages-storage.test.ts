@@ -7,8 +7,10 @@ import {
 } from '../src/shared/messages';
 import {
   DEFAULT_PREFERENCES,
+  LEGACY_STORAGE_KEYS,
   STORAGE_KEY,
   loadPreferences,
+  migratePreferences,
   normalizePreferences,
   savePreferences,
 } from '../src/shared/preferences';
@@ -16,17 +18,17 @@ import { restrictionReason } from '../src/background/restricted';
 
 describe('message validation', () => {
   it('accepts valid content requests only', () => {
-    expect(isContentRequest({ type: 'sl/toggle' })).toBe(true);
-    expect(isContentRequest({ type: 'sl/ping' })).toBe(true);
-    expect(isContentRequest({ type: 'sl/capture-visible-tab' })).toBe(false);
+    expect(isContentRequest({ type: 'aj-lens/toggle' })).toBe(true);
+    expect(isContentRequest({ type: 'aj-lens/ping' })).toBe(true);
+    expect(isContentRequest({ type: 'aj-lens/capture-visible-tab' })).toBe(false);
     expect(isContentRequest(null)).toBe(false);
-    expect(isContentRequest('sl/toggle')).toBe(false);
+    expect(isContentRequest('aj-lens/toggle')).toBe(false);
   });
 
   it('validates background requests', () => {
-    expect(isBackgroundRequest({ type: 'sl/capture-visible-tab' })).toBe(true);
-    expect(isBackgroundRequest({ type: 'sl/state', active: true })).toBe(true);
-    expect(isBackgroundRequest({ type: 'sl/state', active: 'yes' })).toBe(false);
+    expect(isBackgroundRequest({ type: 'aj-lens/capture-visible-tab' })).toBe(true);
+    expect(isBackgroundRequest({ type: 'aj-lens/state', active: true })).toBe(true);
+    expect(isBackgroundRequest({ type: 'aj-lens/state', active: 'yes' })).toBe(false);
     expect(isBackgroundRequest({ type: 'unknown' })).toBe(false);
   });
 
@@ -34,27 +36,27 @@ describe('message validation', () => {
     const dataUrl = 'data:text/markdown;charset=utf-8;base64,aGk=';
     expect(
       isBackgroundRequest({
-        type: 'sl/download',
-        filename: 'section-lens/a.com-hero/reconstruction-prompt.md',
+        type: 'aj-lens/download',
+        filename: 'aj-lens/a.com-hero/reconstruction-prompt.md',
         dataUrl,
       }),
     ).toBe(true);
-    expect(isBackgroundRequest({ type: 'sl/download', filename: '../evil.sh', dataUrl })).toBe(
-      false,
-    );
-    expect(isBackgroundRequest({ type: 'sl/download', filename: '/etc/passwd', dataUrl })).toBe(
+    expect(isBackgroundRequest({ type: 'aj-lens/download', filename: '../evil.sh', dataUrl })).toBe(
       false,
     );
     expect(
+      isBackgroundRequest({ type: 'aj-lens/download', filename: '/etc/passwd', dataUrl }),
+    ).toBe(false);
+    expect(
       isBackgroundRequest({
-        type: 'sl/download',
+        type: 'aj-lens/download',
         filename: 'a.md',
         dataUrl: 'https://evil.example/x',
       }),
     ).toBe(false);
     expect(
       isBackgroundRequest({
-        type: 'sl/download',
+        type: 'aj-lens/download',
         filename: 'a.png',
         dataUrl: 'data:image/png;base64,AAAA',
       }),
@@ -136,5 +138,97 @@ describe('restricted pages', () => {
     expect(restrictionReason('https://example.com/')).toBeNull();
     expect(restrictionReason('')).toBeNull();
     expect(restrictionReason('file:///Users/me/page.html')).toBeNull();
+  });
+});
+
+describe('legacy storage migration', () => {
+  const LEGACY = 'sectionLens.preferences';
+  const legacyPrefs = {
+    version: 1,
+    panelPosition: { x: 120, y: 48 },
+    minimized: true,
+    buildTarget: 'nextjs',
+    customInstructions: 'Use our Card component.',
+    promptDetail: 'compact',
+    include: { visibleText: false, assetUrls: true, domSummary: false },
+  };
+
+  function memoryArea(
+    initial: Record<string, unknown>,
+    opts: { failSet?: boolean; dropWrites?: boolean } = {},
+  ) {
+    const data: Record<string, unknown> = structuredClone(initial);
+    const area = {
+      data,
+      get: async (keys: string | string[]) => {
+        const out: Record<string, unknown> = {};
+        for (const k of Array.isArray(keys) ? keys : [keys])
+          if (k in data) out[k] = structuredClone(data[k]);
+        return out;
+      },
+      set: async (items: Record<string, unknown>) => {
+        if (opts.failSet) throw new Error('quota');
+        if (!opts.dropWrites) Object.assign(data, structuredClone(items));
+      },
+      remove: async (keys: string | string[]) => {
+        for (const k of Array.isArray(keys) ? keys : [keys]) delete data[k];
+      },
+    };
+    return area;
+  }
+
+  it('copies every legacy preference to the new key, then removes the legacy key', async () => {
+    const area = memoryArea({ [LEGACY]: legacyPrefs });
+    expect(await migratePreferences(area)).toBe('migrated');
+    expect(area.data[LEGACY]).toBeUndefined();
+    const prefs = await loadPreferences(area);
+    expect(prefs.panelPosition).toEqual({ x: 120, y: 48 });
+    expect(prefs.minimized).toBe(true);
+    expect(prefs.buildTarget).toBe('nextjs');
+    expect(prefs.customInstructions).toBe('Use our Card component.');
+    expect(prefs.promptDetail).toBe('compact');
+    expect(prefs.include.visibleText).toBe(false);
+    expect(prefs.include.domSummary).toBe(false);
+    expect(prefs.include.assetUrls).toBe(true);
+  });
+
+  it('never overwrites values already stored under the new key', async () => {
+    const area = memoryArea({
+      [LEGACY]: legacyPrefs,
+      [STORAGE_KEY]: { ...DEFAULT_PREFERENCES, buildTarget: 'svelte' },
+    });
+    expect(await migratePreferences(area)).toBe('kept-existing');
+    expect((await loadPreferences(area)).buildTarget).toBe('svelte');
+    expect(area.data[LEGACY]).toBeUndefined();
+  });
+
+  it('is idempotent', async () => {
+    const area = memoryArea({ [LEGACY]: legacyPrefs });
+    await migratePreferences(area);
+    const snapshot = structuredClone(area.data);
+    expect(await migratePreferences(area)).toBe('none');
+    expect(await migratePreferences(area)).toBe('none');
+    expect(area.data).toEqual(snapshot);
+  });
+
+  it('keeps legacy data when the new value cannot be written', async () => {
+    const failing = memoryArea({ [LEGACY]: legacyPrefs }, { failSet: true });
+    expect(await migratePreferences(failing)).toBe('failed');
+    expect(failing.data[LEGACY]).toEqual(legacyPrefs);
+    const dropped = memoryArea({ [LEGACY]: legacyPrefs }, { dropWrites: true });
+    expect(await migratePreferences(dropped)).toBe('failed');
+    expect(dropped.data[LEGACY]).toEqual(legacyPrefs);
+  });
+
+  it('does nothing for fresh installs', async () => {
+    const area = memoryArea({});
+    expect(await migratePreferences(area)).toBe('none');
+    expect(area.data).toEqual({});
+    expect(await migratePreferences(null)).toBe('none');
+  });
+
+  it('only reads the documented legacy key', () => {
+    expect(LEGACY_STORAGE_KEYS).toEqual([LEGACY]);
+    expect(STORAGE_KEY).toBe('aj-lens.preferences');
   });
 });

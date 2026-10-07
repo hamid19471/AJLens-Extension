@@ -1,7 +1,7 @@
 import type { Measurer } from './measure';
 import { area } from './geometry';
 
-export const HOST_TAG = 'section-lens-root';
+export const HOST_TAG = 'aj-lens-root';
 
 export const IGNORED_TAGS = new Set([
   'script',

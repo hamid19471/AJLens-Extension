@@ -1,10 +1,10 @@
-# Privacy Policy — Section Lens
+# Privacy Policy — AJ Lens
 
 _Last updated: 2026-10-07_
 
-Section Lens is a developer tool. It analyzes a part of a web page that **you** select and turns it into a prompt for a coding agent. It is built so that your data never leaves your browser.
+AJ Lens is a developer tool. It analyzes a part of a web page that **you** select and turns it into a prompt for a coding agent. It is built so that your data never leaves your browser.
 
-## What Section Lens does not do
+## What AJ Lens does not do
 
 - It does not send any data to any server. The extension makes no network requests.
 - It does not use analytics, telemetry, tracking, or third-party SDKs.
@@ -16,7 +16,7 @@ Section Lens is a developer tool. It analyzes a part of a web page that **you** 
 
 ## What is processed, and where
 
-When you lock a section, Section Lens reads that section's DOM structure, computed styles, visible text, asset references, ARIA attributes, and the page's readable stylesheets. All of this happens **locally, inside the tab**. It then takes a screenshot of the visible tab via Chrome's `captureVisibleTab`, crops it to the selection, and keeps it in memory.
+When you lock a section, AJ Lens reads that section's DOM structure, computed styles, visible text, asset references, ARIA attributes, and the page's readable stylesheets. All of this happens **locally, inside the tab**. It then takes a screenshot of the visible tab via Chrome's `captureVisibleTab`, crops it to the selection, and keeps it in memory.
 
 Before anything is shown or exported:
 
@@ -39,7 +39,7 @@ Inspected content, prompts, analyses and screenshots are **never** persisted. Th
 
 - Close the inspector (Esc or ×) to discard everything in memory.
 - Remove the extension to delete its stored preferences.
-- Review every exported file before you share it with an AI service. Section Lens redacts common secrets, but you decide what to send to third parties.
+- Review every exported file before you share it with an AI service. AJ Lens redacts common secrets, but you decide what to send to third parties.
 
 ## Contact
 

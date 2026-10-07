@@ -1,11 +1,11 @@
 /** Typed messages exchanged between the service worker and the content script. */
 
-export type ContentRequest = { type: 'sl/toggle' } | { type: 'sl/ping' };
+export type ContentRequest = { type: 'aj-lens/toggle' } | { type: 'aj-lens/ping' };
 
 export type BackgroundRequest =
-  | { type: 'sl/capture-visible-tab' }
-  | { type: 'sl/download'; filename: string; dataUrl: string }
-  | { type: 'sl/state'; active: boolean };
+  | { type: 'aj-lens/capture-visible-tab' }
+  | { type: 'aj-lens/download'; filename: string; dataUrl: string }
+  | { type: 'aj-lens/state'; active: boolean };
 
 export interface ToggleResponse {
   ok: true;
@@ -24,14 +24,14 @@ export type DownloadResponse = { ok: true; downloadId: number } | { ok: false; e
 export type StateResponse = { ok: true };
 
 export type ResponseFor<T extends ContentRequest | BackgroundRequest> = T extends {
-  type: 'sl/toggle';
+  type: 'aj-lens/toggle';
 }
   ? ToggleResponse
-  : T extends { type: 'sl/ping' }
+  : T extends { type: 'aj-lens/ping' }
     ? PingResponse
-    : T extends { type: 'sl/capture-visible-tab' }
+    : T extends { type: 'aj-lens/capture-visible-tab' }
       ? CaptureResponse
-      : T extends { type: 'sl/download' }
+      : T extends { type: 'aj-lens/download' }
         ? DownloadResponse
         : StateResponse;
 
@@ -43,17 +43,17 @@ const SAFE_FILENAME = /^[\w\-./ ]{1,200}$/;
 
 export function isContentRequest(value: unknown): value is ContentRequest {
   if (!isRecord(value)) return false;
-  return value.type === 'sl/toggle' || value.type === 'sl/ping';
+  return value.type === 'aj-lens/toggle' || value.type === 'aj-lens/ping';
 }
 
 export function isBackgroundRequest(value: unknown): value is BackgroundRequest {
   if (!isRecord(value)) return false;
   switch (value.type) {
-    case 'sl/capture-visible-tab':
+    case 'aj-lens/capture-visible-tab':
       return true;
-    case 'sl/state':
+    case 'aj-lens/state':
       return typeof value.active === 'boolean';
-    case 'sl/download':
+    case 'aj-lens/download':
       return (
         typeof value.filename === 'string' &&
         SAFE_FILENAME.test(value.filename) &&

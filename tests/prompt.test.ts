@@ -164,7 +164,7 @@ describe('exports', () => {
   });
 
   it('creates a safe export folder name', () => {
-    expect(exportFolder(analysis)).toMatch(/^section-lens\/[\w.-]+-pricing-2026-10-07T10-00-00$/);
+    expect(exportFolder(analysis)).toMatch(/^aj-lens\/[\w.-]+-pricing-2026-10-07T10-00-00$/);
   });
 
   it('encodes UTF-8 data URLs', () => {

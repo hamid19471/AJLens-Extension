@@ -3,9 +3,9 @@ import { HOST_TAG } from '../core/filters';
 import { InspectorController } from './controller';
 import { notifyState, runtimeAvailable } from './runtime';
 
-declare const __SL_VERSION__: string;
+declare const __AJL_VERSION__: string;
 
-interface SectionLensGlobal {
+interface AJLensGlobal {
   version: string;
   toggle(): boolean;
   isActive(): boolean;
@@ -13,20 +13,21 @@ interface SectionLensGlobal {
 
 declare global {
   interface Window {
-    __sectionLens?: SectionLensGlobal;
+    __ajLens?: AJLensGlobal;
   }
 }
 
 function bootstrap(): void {
   if (window.top !== window) return; // top frame only
-  if (window.__sectionLens) return;
+  if (window.__ajLens) return;
 
   // Remove UI orphaned by a previous extension instance (e.g. after an update).
-  document.querySelectorAll(HOST_TAG).forEach((n) => n.remove());
+  // 'section-lens-root' is the host tag used before the AJ Lens rename.
+  document.querySelectorAll(`${HOST_TAG}, section-lens-root`).forEach((n) => n.remove());
 
   let controller: InspectorController | null = null;
-  const api: SectionLensGlobal = {
-    version: typeof __SL_VERSION__ === 'string' ? __SL_VERSION__ : 'dev',
+  const api: AJLensGlobal = {
+    version: typeof __AJL_VERSION__ === 'string' ? __AJL_VERSION__ : 'dev',
     toggle() {
       if (controller) {
         controller.destroy();
@@ -44,12 +45,12 @@ function bootstrap(): void {
     },
     isActive: () => controller !== null,
   };
-  window.__sectionLens = api;
+  window.__ajLens = api;
 
   if (runtimeAvailable()) {
     chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
       if (sender.id !== chrome.runtime.id || !isContentRequest(message)) return false;
-      if (message.type === 'sl/toggle') sendResponse({ ok: true, active: api.toggle() });
+      if (message.type === 'aj-lens/toggle') sendResponse({ ok: true, active: api.toggle() });
       else sendResponse({ ok: true, version: api.version });
       return false;
     });

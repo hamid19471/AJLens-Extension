@@ -1,4 +1,4 @@
-/** Original Section Lens mark: rounded-square focus frame with a centered lens dot. */
+/** Original AJ Lens mark: rounded-square focus frame with a centered lens dot. */
 export function LensIcon({ size = 18 }: { size?: number }) {
   return (
     <svg

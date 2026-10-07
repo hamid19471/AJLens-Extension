@@ -31,7 +31,7 @@ for (const e of entries) {
     plugins: [react()],
     define: {
       'process.env.NODE_ENV': JSON.stringify(watch ? 'development' : 'production'),
-      __SL_VERSION__: JSON.stringify(pkg.version),
+      __AJL_VERSION__: JSON.stringify(pkg.version),
     },
     build: {
       outDir,
@@ -44,11 +44,11 @@ for (const e of entries) {
       lib: {
         entry: resolve(root, e.entry),
         formats: [e.format],
-        name: 'SectionLens',
+        name: 'AJLens',
         fileName: () => `${e.name}.js`,
       },
     },
   });
 }
 
-if (!watch) console.log(`Built Section Lens ${pkg.version} → dist/`);
+if (!watch) console.log(`Built AJ Lens ${pkg.version} → dist/`);

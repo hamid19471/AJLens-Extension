@@ -141,7 +141,7 @@ export function Panel({ controller }: { controller: InspectorController }) {
       className={`panel${prefs.minimized ? ' minimized' : ''}`}
       style={{ transform: `translate(${clamped.x}px, ${clamped.y}px)` }}
       role="region"
-      aria-label="Section Lens inspector"
+      aria-label="AJ Lens inspector"
       tabIndex={-1}
     >
       <header
@@ -153,7 +153,7 @@ export function Panel({ controller }: { controller: InspectorController }) {
         title="Drag to move"
       >
         <LensIcon />
-        <span className="brand">Section Lens</span>
+        <span className="brand">AJ Lens</span>
         {prefs.minimized && (
           <span className={`mini-dot${locked ? ' locked' : ''}`} aria-hidden="true" />
         )}
@@ -178,7 +178,7 @@ export function Panel({ controller }: { controller: InspectorController }) {
         <button
           type="button"
           className="icon-btn"
-          aria-label="Close Section Lens"
+          aria-label="Close AJ Lens"
           onClick={() => controller.close()}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">

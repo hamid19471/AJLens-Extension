@@ -1,8 +1,8 @@
-# Section Lens
+# AJ Lens
 
 **Point. Capture. Rebuild.**
 
-Section Lens is a Chrome extension (Manifest V3) that lets you hover over any section of a website, lock it, capture a cropped visual reference, analyze its structure and styling locally, and generate a detailed reconstruction prompt for Claude Code, Codex, GPT, or any other coding agent.
+AJ Lens is a Chrome extension (Manifest V3) that lets you hover over any section of a website, lock it, capture a cropped visual reference, analyze its structure and styling locally, and generate a detailed reconstruction prompt for Claude Code, Codex, GPT, or any other coding agent.
 
 Everything runs in your browser. There is no backend, no API key, and nothing is uploaded.
 
@@ -12,7 +12,7 @@ Everything runs in your browser. There is no backend, no API key, and nothing is
 
 - [What it produces](#what-it-produces)
 - [Installation (Load unpacked)](#installation-load-unpacked)
-- [Using Section Lens](#using-section-lens)
+- [Using AJ Lens](#using-aj-lens)
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [Screenshot behavior](#screenshot-behavior)
 - [Using the artifacts with coding agents](#using-the-artifacts-with-coding-agents)
@@ -29,10 +29,10 @@ Everything runs in your browser. There is no backend, no API key, and nothing is
 | File                       | Contents                                                                                                                                                                                                                              |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `reconstruction-prompt.md` | Capture metadata (time, sanitized origin, page title, selected element, viewport, classification), the generated prompt, and a sanitized measurement appendix.                                                                        |
-| `reference.png`            | The selected section, cropped from a screenshot of the visible tab at device resolution. The Section Lens panel and highlight are hidden before capture.                                                                              |
+| `reference.png`            | The selected section, cropped from a screenshot of the visible tab at device resolution. The AJ Lens panel and highlight are hidden before capture.                                                                                   |
 | `section-analysis.json`    | A typed, versioned (`schemaVersion: "1.0"`) analysis: structure, layout, computed styles, typography, colors and inferred tokens, assets, interactions, accessibility, responsive evidence, classification, assumptions and warnings. |
 
-Exports are saved to `Downloads/section-lens/<host>-<type>-<timestamp>/`, so the three files stay together.
+Exports are saved to `Downloads/aj-lens/<host>-<type>-<timestamp>/`, so the three files stay together.
 
 ## Installation (Load unpacked)
 
@@ -44,19 +44,19 @@ Exports are saved to `Downloads/section-lens/<host>-<type>-<timestamp>/`, so the
 2. Open `chrome://extensions`.
 3. Turn on **Developer mode** (top right).
 4. Click **Load unpacked** and choose the `dist/` folder.
-5. Pin **Section Lens** to the toolbar (puzzle-piece menu → pin).
+5. Pin **AJ Lens** to the toolbar (puzzle-piece menu → pin).
 
-A prebuilt archive is created by `npm run package` at `release/section-lens-1.0.0.zip`. To use it, unzip it and load the unzipped folder the same way.
+A prebuilt archive is created by `npm run package` at `release/aj-lens-1.0.0.zip`. To use it, unzip it and load the unzipped folder the same way.
 
 Requires Chrome 127 or newer (any Chromium browser that supports MV3 should work).
 
-## Using Section Lens
+## Using AJ Lens
 
 1. Visit a website.
 2. Click the toolbar icon, or press **Alt+Shift+S**. The panel appears near the upper right.
 3. Hover over the page. A green boundary follows the most meaningful region under the pointer (sections, cards, grids, forms, navs), not the deepest span or icon. The panel shows the tag, a short selector, the dimensions, the descendant count and an asset count.
 4. Use **↑ Parent** or **↓ Smaller** (or the arrow keys) to adjust the selection.
-5. **Click the page** or press **Lock section** (or Enter). Section Lens then:
+5. **Click the page** or press **Lock section** (or Enter). AJ Lens then:
    - keeps a stronger boundary on the locked section
    - analyzes it in stages (the progress bar shows each one)
    - captures and crops a reference screenshot
@@ -84,7 +84,7 @@ Shortcuts are ignored while you type in an input, textarea, select or contentedi
 ## Screenshot behavior
 
 - Capture happens only after you lock a section.
-- The panel and overlay are hidden, Section Lens waits for two animation frames, and the service worker calls `chrome.tabs.captureVisibleTab`.
+- The panel and overlay are hidden, AJ Lens waits for two animation frames, and the service worker calls `chrome.tabs.captureVisibleTab`.
 - The crop scale comes from the captured bitmap width ÷ viewport width, so devicePixelRatio and browser zoom are both handled.
 - If the section is only partly inside the viewport, you choose one of three options:
   - **Capture visible area**: crops what is visible. The prompt marks the reference as partial.
@@ -110,12 +110,12 @@ Values marked **measured** come straight from the page. **Discovered** values co
 
 ## Permissions
 
-| Permission  | Why it is needed                                                                                                                                                                                        |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `activeTab` | Grants temporary access to the current tab, and only after you click the toolbar icon or press the shortcut. Section Lens has no host permissions and cannot see any page you have not activated it on. |
-| `scripting` | Injects the inspector (`content.js`) into the active tab on demand. Nothing is injected automatically.                                                                                                  |
-| `storage`   | Saves your preferences only: panel position, minimized state, build target, custom instructions, prompt detail and include options.                                                                     |
-| `downloads` | Saves `reconstruction-prompt.md`, `reference.png` and `section-analysis.json` into one Downloads subfolder.                                                                                             |
+| Permission  | Why it is needed                                                                                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `activeTab` | Grants temporary access to the current tab, and only after you click the toolbar icon or press the shortcut. AJ Lens has no host permissions and cannot see any page you have not activated it on. |
+| `scripting` | Injects the inspector (`content.js`) into the active tab on demand. Nothing is injected automatically.                                                                                             |
+| `storage`   | Saves your preferences only: panel position, minimized state, build target, custom instructions, prompt detail and include options.                                                                |
+| `downloads` | Saves `reconstruction-prompt.md`, `reference.png` and `section-analysis.json` into one Downloads subfolder.                                                                                        |
 
 `chrome.tabs.captureVisibleTab` is covered by `activeTab`, so the broad `tabs` permission is **not** requested. See [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
 
@@ -126,7 +126,7 @@ Values marked **measured** come straight from the page. **Discovered** values co
 - Password fields, hidden inputs and payment/OTP autocomplete fields are never read. Placeholders and visible text are scanned to redact emails, card-like numbers and tokens.
 - URLs are sanitized: credentials stripped, tracking parameters removed, sensitive parameters (`token`, `key`, `session`, `code`, `state`, `signature` and similar) redacted, and token-bearing fragments removed. Data URLs are reduced to their type and size.
 - Screenshots and analyses stay in memory and are discarded when the inspector closes unless you download them.
-- Section Lens runs only after you explicitly activate it on a tab.
+- AJ Lens runs only after you explicitly activate it on a tab.
 
 Full policy: [docs/PRIVACY.md](docs/PRIVACY.md).
 
@@ -153,7 +153,7 @@ The smoke test uses Playwright's Chromium. It reuses any Chromium already in the
 
 ```bash
 npm run build     # Vite → dist/ (content.js IIFE, background.js ES module, notice page) + validation
-npm run package   # build + release/section-lens-<version>.zip (manifest at archive root)
+npm run package   # build + release/aj-lens-<version>.zip (manifest at archive root)
 npm run validate  # re-check dist/: manifest, permissions, every referenced file exists
 ```
 
@@ -190,7 +190,7 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Known limitations
 
-- **Only the current state is observed.** Hover, focus, active, open-menu and animation states are not triggered, because Section Lens never clicks or modifies the page. The prompt says so explicitly.
+- **Only the current state is observed.** Hover, focus, active, open-menu and animation states are not triggered, because AJ Lens never clicks or modifies the page. The prompt says so explicitly.
 - **Cross-origin stylesheets** cannot be read by any page script. Media queries, `@font-face` rules and custom properties from them are missing, and the analysis counts and reports them.
 - **Cross-origin iframes:** their contents cannot be inspected. You can select the iframe box, and the panel and analysis warn about it.
 - **Same-origin iframes:** only the top frame is instrumented. An iframe's inner document is not analyzed.
@@ -199,8 +199,8 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - Canvas, WebGL and video contents are recorded as present but not reconstructed.
 - The classifier is deterministic and heuristic. Uncertain results are labelled inferred, with confidence and evidence.
 - Computed values reflect the current viewport width. Responsive behavior at other widths comes from discovered media queries or is labelled inferred.
-- Chrome blocks extensions on `chrome://`, `edge://`, extension pages and the Chrome Web Store. Section Lens shows an explanatory popup there.
-- `file://` pages need **Allow access to file URLs** enabled for Section Lens in `chrome://extensions`.
+- Chrome blocks extensions on `chrome://`, `edge://`, extension pages and the Chrome Web Store. AJ Lens shows an explanatory popup there.
+- `file://` pages need **Allow access to file URLs** enabled for AJ Lens in `chrome://extensions`.
 
 ## Troubleshooting
 

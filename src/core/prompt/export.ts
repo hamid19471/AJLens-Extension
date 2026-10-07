@@ -6,7 +6,7 @@ export const FILES = {
   analysis: 'section-analysis.json',
 } as const;
 
-/** Folder name like `section-lens/example.com-hero-2026-10-07T10-20-00`. */
+/** Folder name like `aj-lens/example.com-hero-2026-10-07T10-20-00`. */
 export function exportFolder(a: SectionAnalysis): string {
   const host =
     a.metadata.sourceOrigin
@@ -15,7 +15,7 @@ export function exportFolder(a: SectionAnalysis): string {
       .slice(0, 40) || 'page';
   const kind = a.classification.primary.replace(/[^\w]+/g, '-');
   const stamp = a.metadata.capturedAt.replace(/\.\d+Z$/, '').replace(/[:]/g, '-');
-  return `section-lens/${host}-${kind}-${stamp}`;
+  return `aj-lens/${host}-${kind}-${stamp}`;
 }
 
 export function buildMarkdownExport(a: SectionAnalysis, prompt: string): string {
@@ -38,7 +38,7 @@ export function buildMarkdownExport(a: SectionAnalysis, prompt: string): string 
   };
   return [
     '---',
-    `title: "Section Lens reconstruction prompt"`,
+    `title: "AJ Lens reconstruction prompt"`,
     `captured_at: "${a.metadata.capturedAt}"`,
     `source_origin: "${a.metadata.sourceOrigin}"`,
     `source_path: "${a.metadata.sourcePath}"`,

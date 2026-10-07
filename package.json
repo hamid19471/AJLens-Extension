@@ -1,5 +1,5 @@
 {
-  "name": "section-lens",
+  "name": "aj-lens",
   "version": "1.0.0",
   "description": "Point. Capture. Rebuild. Inspect a website section and generate a reconstruction prompt for coding agents.",
   "private": true,

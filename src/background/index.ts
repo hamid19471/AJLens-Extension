@@ -21,7 +21,7 @@ async function showNotice(tabId: number | undefined, reason: string): Promise<vo
   if (tabId !== undefined) {
     await chrome.action.setBadgeBackgroundColor({ tabId, color: '#d56d6d' });
     await chrome.action.setBadgeText({ tabId, text: '!' });
-    await chrome.action.setTitle({ tabId, title: `Section Lens — ${reason}` });
+    await chrome.action.setTitle({ tabId, title: `AJ Lens — ${reason}` });
   }
 }
 
@@ -31,7 +31,7 @@ async function setActiveBadge(tabId: number, active: boolean): Promise<void> {
     await chrome.action.setBadgeText({ tabId, text: active ? 'ON' : '' });
     await chrome.action.setTitle({
       tabId,
-      title: active ? 'Section Lens — inspector active' : 'Section Lens',
+      title: active ? 'AJ Lens — inspector active' : 'AJ Lens',
     });
   } catch {
     // Tab may have closed.
@@ -40,7 +40,7 @@ async function setActiveBadge(tabId: number, active: boolean): Promise<void> {
 
 async function sendToggle(tabId: number): Promise<ToggleResponse | null> {
   try {
-    const res: unknown = await chrome.tabs.sendMessage(tabId, { type: 'sl/toggle' });
+    const res: unknown = await chrome.tabs.sendMessage(tabId, { type: 'aj-lens/toggle' });
     if (res && typeof res === 'object' && (res as ToggleResponse).ok) return res as ToggleResponse;
     return null;
   } catch {
@@ -70,8 +70,8 @@ async function toggleInspector(tab: chrome.tabs.Tab): Promise<void> {
       )
         ? 'Chrome does not allow extensions to run on this page.'
         : /file:/i.test(tab.url ?? '')
-          ? 'Enable "Allow access to file URLs" for Section Lens in chrome://extensions to inspect local files.'
-          : `Section Lens could not be injected: ${message}`;
+          ? 'Enable "Allow access to file URLs" for AJ Lens in chrome://extensions to inspect local files.'
+          : `AJ Lens could not be injected: ${message}`;
       await showNotice(tabId, friendly);
       return;
     }
@@ -90,7 +90,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     // Navigation tears down the content script; reset per-tab action state.
     void chrome.action.setPopup({ tabId, popup: '' }).catch(() => undefined);
     void chrome.action.setBadgeText({ tabId, text: '' }).catch(() => undefined);
-    void chrome.action.setTitle({ tabId, title: 'Section Lens' }).catch(() => undefined);
+    void chrome.action.setTitle({ tabId, title: 'AJ Lens' }).catch(() => undefined);
   }
 });
 
@@ -105,7 +105,7 @@ async function handleCapture(sender: chrome.runtime.MessageSender): Promise<Capt
     return {
       ok: false,
       error: /permission|activeTab|<all_urls>/i.test(message)
-        ? 'Screenshot permission expired. Click the Section Lens toolbar icon again to re-grant access, then retry.'
+        ? 'Screenshot permission expired. Click the AJ Lens toolbar icon again to re-grant access, then retry.'
         : /MAX_CAPTURE/i.test(message)
           ? 'Chrome rate-limited screenshots. Wait a moment and retry.'
           : `Screenshot failed: ${message}`,
@@ -132,13 +132,13 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   if (!isBackgroundRequest(message)) return false;
   const req: BackgroundRequest = message;
   switch (req.type) {
-    case 'sl/capture-visible-tab':
+    case 'aj-lens/capture-visible-tab':
       void handleCapture(sender).then(sendResponse);
       return true;
-    case 'sl/download':
+    case 'aj-lens/download':
       void handleDownload(req.filename, req.dataUrl).then(sendResponse);
       return true;
-    case 'sl/state':
+    case 'aj-lens/state':
       if (sender.tab?.id !== undefined) void setActiveBadge(sender.tab.id, req.active);
       sendResponse({ ok: true });
       return false;

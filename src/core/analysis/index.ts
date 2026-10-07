@@ -176,7 +176,7 @@ export async function analyzeSection(
         devicePixelRatio: win.devicePixelRatio || 1,
       },
       scroll: { x: Math.round(win.scrollX || 0), y: Math.round(win.scrollY || 0) },
-      generator: opts.generator ?? 'Section Lens',
+      generator: opts.generator ?? 'AJ Lens',
     },
     selection: {
       tagName: root.tagName.toLowerCase(),

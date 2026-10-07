@@ -23,7 +23,7 @@ describe('element filtering', () => {
       <div id="tiny" data-rect="0,0,10,10">t</div>
       <span id="icon" data-rect="0,0,16,16"></span>
       <section id="real" data-rect="0,0,600,300"><h2>Title</h2><p>Body</p></section>
-      <section-lens-root id="ext" data-rect="0,0,300,300"></section-lens-root>`);
+      <aj-lens-root id="ext" data-rect="0,0,300,300"></aj-lens-root>`);
   });
 
   it('ignores scripts, styles, noscript and extension UI', () => {
@@ -80,7 +80,7 @@ describe('hover candidate, parent and child selection', () => {
   });
 
   it('never selects extension UI', () => {
-    const ext = document.createElement('section-lens-root');
+    const ext = document.createElement('aj-lens-root');
     document.body.append(ext);
     expect(pickHoverCandidate(ext, m)).toBeNull();
   });

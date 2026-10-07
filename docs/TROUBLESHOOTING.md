@@ -4,13 +4,13 @@
 
 The page is restricted. Chrome does not let extensions run on `chrome://`, `edge://`, `about:`, extension pages, the Chrome Web Store, or `data:`/`blob:` pages. Click the icon again to see the reason in the popup, then open a normal `http(s)` page.
 
-### "Section Lens could not be injected"
+### "AJ Lens could not be injected"
 
-- **Local files:** enable **Allow access to file URLs** for Section Lens at `chrome://extensions`.
+- **Local files:** enable **Allow access to file URLs** for AJ Lens at `chrome://extensions`.
 - **Enterprise policy:** some managed browsers block extensions on certain sites (`runtime_blocked_hosts`).
 - **Tab opened before install or reload:** reload the tab and try again.
 
-### "Section Lens was updated or reloaded. Reload this page…"
+### "AJ Lens was updated or reloaded. Reload this page…"
 
 After you reload the extension in `chrome://extensions`, pages that were already open keep an orphaned copy of the old script. Reload the page.
 
@@ -44,7 +44,7 @@ Some pages restrict clipboard access, or the document lost focus. Click inside t
 
 ### Downloads go to an unexpected place
 
-Files are saved to `Downloads/section-lens/<host>-<type>-<timestamp>/`. If Chrome is set to "Ask where to save each file", it prompts for each file.
+Files are saved to `Downloads/aj-lens/<host>-<type>-<timestamp>/`. If Chrome is set to "Ask where to save each file", it prompts for each file.
 
 ### The hover target flickers or is too big or too small
 

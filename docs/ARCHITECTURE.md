@@ -1,6 +1,6 @@
 # Architecture
 
-Section Lens has three runtime pieces and one pure-TypeScript core.
+AJ Lens has three runtime pieces and one pure-TypeScript core.
 
 ```
 toolbar click / Alt+Shift+S
@@ -8,9 +8,9 @@ toolbar click / Alt+Shift+S
         ▼
 ┌──────────────────────┐  chrome.scripting.executeScript(content.js)   ┌───────────────────────────────┐
 │ background.js (SW)   │ ───────────────────────────────────────────▶ │ content.js (isolated world)    │
-│ - restricted check   │  sl/toggle                                    │ InspectorController            │
+│ - restricted check   │  aj-lens/toggle                                    │ InspectorController            │
 │ - inject + toggle    │ ◀─────────────────────────────────────────── │  ├ Overlay (shadow root)       │
-│ - captureVisibleTab  │  sl/capture-visible-tab, sl/download, sl/state│  ├ React Panel (shadow root)   │
+│ - captureVisibleTab  │  aj-lens/capture-visible-tab, aj-lens/download, aj-lens/state│  ├ React Panel (shadow root)   │
 │ - downloads          │                                               │  ├ selection engine (core)     │
 │ - badge / notice     │                                               │  └ analysis + prompt (core)    │
 └──────────────────────┘                                               └───────────────────────────────┘
@@ -18,21 +18,21 @@ toolbar click / Alt+Shift+S
 
 ## Background service worker (`src/background`)
 
-- `action.onClicked`: if the URL is restricted (`restricted.ts`), it sets a per-tab popup (`notice.html?reason=…`), opens it and shows a red badge. Otherwise it sends `sl/toggle`. If no listener answers, it injects `content.js` and toggles again. Injection errors (file URLs without access, policy blocks) become friendly notices.
-- `sl/capture-visible-tab`: calls `chrome.tabs.captureVisibleTab(windowId, { format: 'png' })` for the sender's window. Permission and rate-limit errors are mapped to readable messages.
-- `sl/download`: validates the filename (no traversal, safe characters) and the data URL, then calls `chrome.downloads.download`.
-- `sl/state`: updates the per-tab `ON` badge.
+- `action.onClicked`: if the URL is restricted (`restricted.ts`), it sets a per-tab popup (`notice.html?reason=…`), opens it and shows a red badge. Otherwise it sends `aj-lens/toggle`. If no listener answers, it injects `content.js` and toggles again. Injection errors (file URLs without access, policy blocks) become friendly notices.
+- `aj-lens/capture-visible-tab`: calls `chrome.tabs.captureVisibleTab(windowId, { format: 'png' })` for the sender's window. Permission and rate-limit errors are mapped to readable messages.
+- `aj-lens/download`: validates the filename (no traversal, safe characters) and the data URL, then calls `chrome.downloads.download`.
+- `aj-lens/state`: updates the per-tab `ON` badge.
 - On navigation (`tabs.onUpdated` status `loading`), it resets the popup, badge and title for that tab.
 
 Every message is validated by type guards in `src/shared/messages.ts`, and messages from other extensions are rejected (`sender.id`).
 
 ## Content script (`src/content`)
 
-`index.ts` runs once per page (guarded by `window.__sectionLens` in the isolated world), removes UI left over from a previous extension instance, and registers the message listener.
+`index.ts` runs once per page (guarded by `window.__ajLens` in the isolated world), removes UI left over from a previous extension instance, and registers the message listener.
 
 `InspectorController` owns everything created while the inspector is active:
 
-- **Host:** a `<section-lens-root>` element with `all: initial` inline styles and an open shadow root. The overlay and the React panel live inside it, so page CSS cannot reach them and the extension CSS cannot leak out.
+- **Host:** a `<aj-lens-root>` element with `all: initial` inline styles and an open shadow root. The overlay and the React panel live inside it, so page CSS cannot reach them and the extension CSS cannot leak out.
 - **Events:** registered with one `AbortController`:
   - `pointermove`, `scroll` (capture, passive) and `resize` schedule a frame.
   - pointer/mouse down/up/click (capture) are swallowed only in hover mode and only outside the extension UI. A click locks.

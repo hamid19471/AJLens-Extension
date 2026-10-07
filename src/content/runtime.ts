@@ -9,7 +9,7 @@ export function runtimeAvailable(): boolean {
   }
 }
 
-const CONTEXT_LOST = 'Section Lens was updated or reloaded. Reload this page to keep using it.';
+const CONTEXT_LOST = 'AJ Lens was updated or reloaded. Reload this page to keep using it.';
 
 async function send(message: BackgroundRequest): Promise<unknown> {
   if (!runtimeAvailable()) throw new Error(CONTEXT_LOST);
@@ -18,7 +18,7 @@ async function send(message: BackgroundRequest): Promise<unknown> {
 
 export async function requestCapture(): Promise<CaptureResponse> {
   try {
-    const res = await send({ type: 'sl/capture-visible-tab' });
+    const res = await send({ type: 'aj-lens/capture-visible-tab' });
     return isCaptureResponse(res)
       ? res
       : { ok: false, error: 'Unexpected response from the service worker.' };
@@ -32,7 +32,7 @@ export async function requestDownload(
   dataUrl: string,
 ): Promise<DownloadResponse> {
   try {
-    const res = await send({ type: 'sl/download', filename, dataUrl });
+    const res = await send({ type: 'aj-lens/download', filename, dataUrl });
     return isDownloadResponse(res)
       ? res
       : { ok: false, error: 'Unexpected response from the service worker.' };
@@ -43,5 +43,5 @@ export async function requestDownload(
 
 export function notifyState(active: boolean): void {
   if (!runtimeAvailable()) return;
-  send({ type: 'sl/state', active }).catch(() => undefined);
+  send({ type: 'aj-lens/state', active }).catch(() => undefined);
 }

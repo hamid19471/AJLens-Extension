@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Section Lens",
-  "short_name": "Section Lens",
+  "name": "AJ Lens",
+  "short_name": "AJ Lens",
   "version": "1.0.0",
   "description": "Point. Capture. Rebuild. Select any website section and generate a reconstruction prompt for coding agents — measured locally.",
   "minimum_chrome_version": "127",
@@ -12,7 +12,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Section Lens",
+    "default_title": "AJ Lens",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -31,7 +31,7 @@
         "default": "Alt+Shift+S",
         "mac": "Alt+Shift+S"
       },
-      "description": "Toggle the Section Lens inspector"
+      "description": "Toggle the AJ Lens inspector"
     }
   }
 }

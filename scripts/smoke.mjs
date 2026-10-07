@@ -77,7 +77,7 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/`;
 
 const executablePath = findChromium();
-const userDataDir = mkdtempSync(join(tmpdir(), 'section-lens-smoke-'));
+const userDataDir = mkdtempSync(join(tmpdir(), 'aj-lens-smoke-'));
 let context;
 try {
   context = await chromium.launchPersistentContext(userDataDir, {
@@ -95,13 +95,20 @@ try {
   check('service worker registered', sw.url().endsWith('/background.js'), sw.url());
   check(
     'manifest loaded',
-    manifest.name === 'Section Lens' && manifest.manifest_version === 3,
+    manifest.name === 'AJ Lens' && manifest.manifest_version === 3,
     `v${manifest.version}`,
   );
   check(
     'permissions are minimal',
     JSON.stringify(manifest.permissions) ===
       JSON.stringify(['activeTab', 'scripting', 'storage', 'downloads']),
+  );
+
+  check('toolbar title is AJ Lens', manifest.action?.default_title === 'AJ Lens');
+  check('short name is AJ Lens', manifest.short_name === 'AJ Lens');
+  check(
+    'command description uses AJ Lens',
+    manifest.commands?._execute_action?.description === 'Toggle the AJ Lens inspector',
   );
 
   // ---- 2. Content script end-to-end against the fixture with a stubbed runtime.
@@ -114,35 +121,51 @@ try {
     (m) =>
       m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text()),
   );
-  await page.exposeFunction('__slCapture', async () => {
+  await page.exposeFunction('__ajlCapture', async () => {
     const buf = await page.screenshot({ type: 'png' });
     return `data:image/png;base64,${buf.toString('base64')}`;
   });
   await page.addInitScript(() => {
-    const stored = {};
-    window.__slDownloads = [];
+    // Simulates a user upgrading from "Section Lens": preferences exist only under the legacy key.
+    const stored = (window.__ajlStored = {
+      'sectionLens.preferences': {
+        version: 1,
+        minimized: false,
+        buildTarget: 'nextjs',
+        promptDetail: 'detailed',
+        customInstructions: '',
+        include: { visibleText: true },
+      },
+    });
+    window.__ajlDownloads = [];
     window.chrome = {
       runtime: {
         id: 'smoke-test',
         onMessage: { addListener() {} },
         async sendMessage(msg) {
-          if (msg.type === 'sl/capture-visible-tab')
-            return { ok: true, dataUrl: await window.__slCapture() };
-          if (msg.type === 'sl/download') {
-            window.__slDownloads.push({
+          if (msg.type === 'aj-lens/capture-visible-tab')
+            return { ok: true, dataUrl: await window.__ajlCapture() };
+          if (msg.type === 'aj-lens/download') {
+            window.__ajlDownloads.push({
               filename: msg.filename,
               size: msg.dataUrl.length,
               dataUrl: msg.dataUrl,
             });
-            return { ok: true, downloadId: window.__slDownloads.length };
+            return { ok: true, downloadId: window.__ajlDownloads.length };
           }
           return { ok: true };
         },
       },
       storage: {
         local: {
-          async get(k) {
-            return { [k]: stored[k] };
+          async get(keys) {
+            const out = {};
+            for (const k of Array.isArray(keys) ? keys : [keys])
+              if (k in stored) out[k] = stored[k];
+            return out;
+          },
+          async remove(keys) {
+            for (const k of Array.isArray(keys) ? keys : [keys]) delete stored[k];
           },
           async set(items) {
             Object.assign(stored, items);
@@ -155,17 +178,34 @@ try {
   await page.addScriptTag({ content: readFileSync(resolve(dist, 'content.js'), 'utf8') });
   check(
     'content script bootstraps',
-    await page.evaluate(() => typeof window.__sectionLens?.toggle === 'function'),
+    await page.evaluate(() => typeof window.__ajLens?.toggle === 'function'),
   );
-  await page.evaluate(() => window.__sectionLens.toggle());
-  const panel = page.locator('section-lens-root .panel');
+  await page.evaluate(() => window.__ajLens.toggle());
+  const panel = page.locator('aj-lens-root .panel');
   await panel.waitFor({ timeout: 5000 });
   check(
     'panel mounted in shadow DOM',
     await page.evaluate(
-      () => !!document.querySelector('section-lens-root')?.shadowRoot?.querySelector('.panel'),
+      () => !!document.querySelector('aj-lens-root')?.shadowRoot?.querySelector('.panel'),
     ),
   );
+  check(
+    'panel header reads "AJ Lens"',
+    (await page.locator('aj-lens-root .brand').textContent()) === 'AJ Lens',
+  );
+  await page.waitForTimeout(200);
+  const migrated = await page.evaluate(() => ({
+    legacy: 'sectionLens.preferences' in window.__ajlStored,
+    current: window.__ajlStored['aj-lens.preferences']?.buildTarget,
+    shown: document.querySelector('aj-lens-root').shadowRoot.querySelector('select').value,
+  }));
+  check(
+    'legacy Section Lens settings migrate',
+    !migrated.legacy && migrated.current === 'nextjs' && migrated.shown === 'nextjs',
+    JSON.stringify(migrated),
+  );
+  // Restore the default build target so prompt assertions below stay comparable.
+  await page.locator('aj-lens-root select').selectOption('existing');
   check(
     'panel isolated from page CSS',
     (await panel.evaluate((el) => getComputedStyle(el).fontFamily)).includes('system-ui'),
@@ -190,15 +230,15 @@ try {
   await page.waitForTimeout(250);
   await page.mouse.move(pb.x + 42, pb.y + pb.height - 38);
   await page.waitForTimeout(250);
-  const label = await page.locator('section-lens-root .sl-label').textContent();
+  const label = await page.locator('aj-lens-root .ajl-label').textContent();
   check('hover highlights a meaningful region', /div\.plan/.test(label ?? ''), label ?? '');
-  const selText = await page.locator('section-lens-root .selector').textContent();
+  const selText = await page.locator('aj-lens-root .selector').textContent();
   check('selection card shows selector', selText === 'div.plan', selText ?? '');
 
   // Parent navigation via keyboard.
   await page.keyboard.press('ArrowUp');
   await page.waitForTimeout(100);
-  const parentSel = await page.locator('section-lens-root .selector').textContent();
+  const parentSel = await page.locator('aj-lens-root .selector').textContent();
   check(
     'ArrowUp selects meaningful parent',
     parentSel === 'div.pricing' || parentSel === 'section#pricing',
@@ -208,31 +248,31 @@ try {
   await page.waitForTimeout(100);
   check(
     'second ArrowUp reaches the section',
-    (await page.locator('section-lens-root .selector').textContent()) === 'section#pricing',
+    (await page.locator('aj-lens-root .selector').textContent()) === 'section#pricing',
   );
 
   // Lock with Enter (section is partially visible → choose "Scroll into view and capture").
   await page.keyboard.press('Enter');
-  const choice = page.locator('section-lens-root .choice');
+  const choice = page.locator('aj-lens-root .choice');
   const needsChoice = await choice.waitFor({ timeout: 3000 }).then(
     () => true,
     () => false,
   );
   if (needsChoice) {
     check('partial-capture choice offered', true);
-    await page.locator('section-lens-root .choice .btn.primary').click();
+    await page.locator('aj-lens-root .choice .btn.primary').click();
   }
   await page.waitForFunction(
     () => {
       const ta = document
-        .querySelector('section-lens-root')
+        .querySelector('aj-lens-root')
         ?.shadowRoot?.querySelector('textarea.prompt');
       return ta && ta.value.length > 1000;
     },
     null,
     { timeout: 15000 },
   );
-  const prompt = await page.locator('section-lens-root textarea.prompt').inputValue();
+  const prompt = await page.locator('aj-lens-root textarea.prompt').inputValue();
   check(
     'prompt generated',
     prompt.startsWith('Reconstruct the selected website section'),
@@ -246,13 +286,13 @@ try {
   check('classified as pricing', /Type: \*\*pricing\*\*/.test(prompt));
   check(
     'status shows locked',
-    (await page.locator('section-lens-root .status').textContent())?.includes('LOCKED'),
+    (await page.locator('aj-lens-root .status').textContent())?.includes('LOCKED'),
   );
   check(
     'lock button switched to Unlock',
-    (await page.locator('section-lens-root .controls .wide').textContent()) === 'Unlock section',
+    (await page.locator('aj-lens-root .controls .wide').textContent()) === 'Unlock section',
   );
-  const preview = await page.locator('section-lens-root .preview figcaption').textContent();
+  const preview = await page.locator('aj-lens-root .preview figcaption').textContent();
   check(
     'reference captured and cropped',
     /reference\.png · \d+ × \d+ px/.test(preview ?? ''),
@@ -267,13 +307,13 @@ try {
     `${pw}×${ph} vs ${sb.width * 2}×${sb.height * 2}`,
   );
   const overlayVisibleAfterCapture = await page.evaluate(
-    () => getComputedStyle(document.querySelector('section-lens-root')).visibility,
+    () => getComputedStyle(document.querySelector('aj-lens-root')).visibility,
   );
   check('UI restored after capture', overlayVisibleAfterCapture === 'visible');
 
   // Compact toggle.
-  await page.locator('section-lens-root .seg button', { hasText: 'Compact' }).click();
-  const compact = await page.locator('section-lens-root textarea.prompt').inputValue();
+  await page.locator('aj-lens-root .seg button', { hasText: 'Compact' }).click();
+  const compact = await page.locator('aj-lens-root textarea.prompt').inputValue();
   check(
     'compact prompt within 2k–6k',
     compact.length >= 2000 && compact.length <= 6000,
@@ -281,11 +321,11 @@ try {
   );
 
   // Exports.
-  await page.locator('section-lens-root .actions .btn', { hasText: 'Save prompt.md' }).click();
-  await page.locator('section-lens-root .actions .btn', { hasText: 'Save reference.png' }).click();
-  await page.locator('section-lens-root .actions .btn', { hasText: 'Save analysis.json' }).click();
+  await page.locator('aj-lens-root .actions .btn', { hasText: 'Save prompt.md' }).click();
+  await page.locator('aj-lens-root .actions .btn', { hasText: 'Save reference.png' }).click();
+  await page.locator('aj-lens-root .actions .btn', { hasText: 'Save analysis.json' }).click();
   await page.waitForTimeout(300);
-  const downloads = await page.evaluate(() => window.__slDownloads);
+  const downloads = await page.evaluate(() => window.__ajlDownloads);
   check(
     'three artifacts exported',
     downloads.length === 3 &&
@@ -309,18 +349,18 @@ try {
   check('secrets absent from prompt', !compact.includes('hunter2') && !prompt.includes('hunter2'));
 
   // Unlock / close / cleanup.
-  await page.locator('section-lens-root .controls .wide').click();
+  await page.locator('aj-lens-root .controls .wide').click();
   check(
     'unlock returns to hover mode',
-    (await page.locator('section-lens-root .status').textContent())?.includes('INSPECTOR ACTIVE'),
+    (await page.locator('aj-lens-root .status').textContent())?.includes('INSPECTOR ACTIVE'),
   );
   await page.keyboard.press('Escape');
   await page.waitForTimeout(100);
-  check('Escape removes all injected UI', (await page.locator('section-lens-root').count()) === 0);
-  for (let i = 0; i < 5; i++) await page.evaluate(() => window.__sectionLens.toggle());
+  check('Escape removes all injected UI', (await page.locator('aj-lens-root').count()) === 0);
+  for (let i = 0; i < 5; i++) await page.evaluate(() => window.__ajLens.toggle());
   check(
     'repeated toggling leaves a single host',
-    (await page.locator('section-lens-root').count()) === 1,
+    (await page.locator('aj-lens-root').count()) === 1,
   );
 
   // Partially visible section: expect the capture choice and a partial reference.
@@ -336,7 +376,7 @@ try {
   await page.waitForTimeout(200);
   await page.mouse.move(hb.x + 32, hb.y + hb.height / 2);
   await page.waitForTimeout(200);
-  const partialSel = await page.locator('section-lens-root .selector').textContent();
+  const partialSel = await page.locator('aj-lens-root .selector').textContent();
   check(
     'hovering a heading selects its section',
     partialSel === 'section#pricing',
@@ -344,7 +384,7 @@ try {
   );
   await page.keyboard.press('Enter');
   const partialChoice = await page
-    .locator('section-lens-root .choice')
+    .locator('aj-lens-root .choice')
     .waitFor({ timeout: 4000 })
     .then(
       () => true,
@@ -352,23 +392,21 @@ try {
     );
   check('partial-capture choice offered', partialChoice);
   if (partialChoice) {
-    await page
-      .locator('section-lens-root .choice .btn', { hasText: 'Capture visible area' })
-      .click();
+    await page.locator('aj-lens-root .choice .btn', { hasText: 'Capture visible area' }).click();
     await page.waitForFunction(
       () =>
-        (document.querySelector('section-lens-root')?.shadowRoot?.querySelector('textarea.prompt')
-          ?.value.length ?? 0) > 1000,
+        (document.querySelector('aj-lens-root')?.shadowRoot?.querySelector('textarea.prompt')?.value
+          .length ?? 0) > 1000,
       null,
       { timeout: 15000 },
     );
-    const partialPrompt = await page.locator('section-lens-root textarea.prompt').inputValue();
+    const partialPrompt = await page.locator('aj-lens-root textarea.prompt').inputValue();
     check(
       'partial capture recorded as visible-only',
       partialPrompt.includes('**visible part only**'),
     );
   }
-  await page.evaluate(() => window.__sectionLens.toggle());
+  await page.evaluate(() => window.__ajLens.toggle());
   check(
     'page clicks work after closing',
     await page.evaluate(() => {

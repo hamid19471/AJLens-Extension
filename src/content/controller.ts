@@ -136,7 +136,7 @@ export class InspectorController {
     shadow.append(style);
     this.overlay = new Overlay(shadow);
     const mount = document.createElement('div');
-    mount.className = 'sl-mount';
+    mount.className = 'ajl-mount';
     shadow.append(mount);
     (document.documentElement ?? document.body).append(host);
     this.host = host;
@@ -147,11 +147,11 @@ export class InspectorController {
     this.bindEvents();
     this.resizeObs = new ResizeObserver(() => this.schedule());
     this.pollTimer = window.setInterval(() => this.schedule(), 300);
-    this.store.set({ announcement: 'Section Lens inspector active. Hover over a section.' });
+    this.store.set({ announcement: 'AJ Lens inspector active. Hover over a section.' });
     if (!runtimeAvailable()) {
       this.setNotice({
         kind: 'warning',
-        text: 'Extension runtime unavailable — screenshots and downloads may not work. Reload the page if Section Lens was updated.',
+        text: 'Extension runtime unavailable — screenshots and downloads may not work. Reload the page if AJ Lens was updated.',
       });
     }
     void loadPreferences().then((prefs) => {
