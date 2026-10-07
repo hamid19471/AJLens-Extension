@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fixture — Acme Landing</title>
+    <style>
+      :root {
+        --brand: #5b6cff;
+        --radius-card: 12px;
+        --space-4: 16px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: Georgia, 'Times New Roman', serif;
+        color: #1f2328;
+        background: #ffffff;
+      }
+      .site-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 64px;
+        padding: 0 32px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .site-nav ul {
+        display: flex;
+        gap: 24px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .site-nav a {
+        color: #1f2328;
+        text-decoration: none;
+        font-size: 15px;
+      }
+      .hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 96px 24px;
+        background: linear-gradient(180deg, #f4f6ff 0%, #ffffff 100%);
+      }
+      .hero h1 {
+        font-size: 48px;
+        line-height: 1.1;
+        margin: 0 0 16px;
+        letter-spacing: -0.02em;
+      }
+      .hero p {
+        font-size: 18px;
+        color: #57606a;
+        max-width: 560px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        height: 44px;
+        padding: 0 20px;
+        border-radius: 8px;
+        background: var(--brand);
+        color: #fff;
+        border: 0;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+      }
+      .container {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 64px 24px;
+      }
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .card {
+        padding: 24px;
+        border: 1px solid #e5e7eb;
+        border-radius: var(--radius-card);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+      }
+      .card h3 {
+        margin: 12px 0 8px;
+        font-size: 20px;
+      }
+      .pricing {
+        display: flex;
+        gap: 24px;
+      }
+      .plan {
+        flex: 1;
+        padding: 32px;
+        border-radius: 16px;
+        border: 1px solid #e5e7eb;
+      }
+      .plan .price {
+        font-size: 40px;
+        font-weight: 700;
+      }
+      .banner {
+        height: 240px;
+        background-image: url('https://cdn.example.com/img/banner.jpg?token=abc123&w=1200');
+        background-size: cover;
+      }
+      .pattern {
+        height: 40px;
+        background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==');
+      }
+      .signup {
+        display: grid;
+        gap: 12px;
+        max-width: 400px;
+      }
+      .signup input {
+        height: 40px;
+        padding: 0 12px;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+      }
+      @media (max-width: 768px) {
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+        .pricing {
+          flex-direction: column;
+        }
+        .site-nav ul {
+          display: none;
+        }
+      }
+      @media (min-width: 1200px) {
+        .hero h1 {
+          font-size: 56px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="site-nav" aria-label="Primary" id="primary-nav">
+      <a href="/" class="logo" aria-label="Acme home">
+        <svg width="28" height="28" viewBox="0 0 24 24" role="img" aria-label="Acme logo">
+          <circle cx="12" cy="12" r="10" fill="#5b6cff" />
+        </svg>
+      </a>
+      <ul>
+        <li><a href="/features">Features</a></li>
+        <li><a href="/pricing">Pricing</a></li>
+        <li><a href="/blog?utm_source=nav">Blog</a></li>
+        <li><a href="https://docs.example.org/start">Docs</a></li>
+      </ul>
+      <button class="btn" type="button" aria-expanded="false" aria-haspopup="menu">Menu</button>
+    </nav>
+
+    <section class="hero" id="hero" data-rect="0,64,1280,520">
+      <h1>Build pages that convert</h1>
+      <p>
+        Acme helps teams ship landing pages faster with reusable sections and analytics built in.
+      </p>
+      <div class="hero-actions" style="display: flex; gap: 12px">
+        <a class="btn" href="/signup">Start free trial</a>
+        <a href="/demo">Book a demo →</a>
+      </div>
+      <picture>
+        <source srcset="/img/hero.avif 1x, /img/hero@2x.avif 2x" type="image/avif" />
+        <img
+          src="/img/hero.png"
+          srcset="/img/hero.png 1x, /img/hero@2x.png 2x"
+          alt="Dashboard screenshot"
+          width="960"
+          height="540"
+        />
+      </picture>
+    </section>
+
+    <div class="outer-wrapper">
+      <div class="inner-wrapper">
+        <div class="container">
+          <section class="features" id="features" aria-labelledby="features-title">
+            <h2 id="features-title">Everything you need</h2>
+            <div class="feature-grid">
+              <article class="card feature">
+                <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12h16" stroke="#5b6cff" />
+                </svg>
+                <h3>Fast</h3>
+                <p>Pages load in under a second.</p>
+              </article>
+              <article class="card feature">
+                <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 4v16" stroke="#5b6cff" />
+                </svg>
+                <h3>Flexible</h3>
+                <p>Compose sections from a shared library.</p>
+              </article>
+              <article class="card feature">
+                <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 4l16 16" stroke="#5b6cff" />
+                </svg>
+                <h3>Measured</h3>
+                <p>Analytics for every block.</p>
+              </article>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <section class="container" id="pricing">
+      <h2>Pricing</h2>
+      <div class="pricing">
+        <div class="plan">
+          <h3>Starter</h3>
+          <div class="price">$0</div>
+          <p>Free forever for side projects.</p>
+          <a class="btn" href="/signup?plan=starter">Get started</a>
+        </div>
+        <div class="plan">
+          <h3>Pro</h3>
+          <div class="price">$29/mo</div>
+          <p>Billed monthly. Most popular.</p>
+          <a class="btn" href="/signup?plan=pro">Upgrade</a>
+        </div>
+        <div class="plan">
+          <h3>Team</h3>
+          <div class="price">$99/mo</div>
+          <p>Per month for up to 10 seats.</p>
+          <a class="btn" href="/signup?plan=team">Contact sales</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="banner" role="img" aria-label="Product banner"></div>
+    <div class="pattern"></div>
+
+    <section class="container" id="signup">
+      <h2>Create your account</h2>
+      <form class="signup" action="/register" method="post">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="you@company.com"
+          required
+          autocomplete="email"
+        />
+        <label for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          value="hunter2-secret"
+          required
+          autocomplete="new-password"
+        />
+        <input type="hidden" name="csrf_token" value="tok_9f8e7d6c5b4a3210fedcba" />
+        <button class="btn" type="submit">Sign up</button>
+      </form>
+    </section>
+
+    <footer class="site-footer" id="footer">
+      <p>© 2026 Acme Inc. All rights reserved.</p>
+      <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms</a> ·
+      <a href="mailto:hello@acme.test">hello@acme.test</a>
+    </footer>
+  </body>
+</html>
